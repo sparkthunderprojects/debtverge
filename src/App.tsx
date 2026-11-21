@@ -1,6 +1,7 @@
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Login } from "@/components/Login";
 import { DebtVerge } from "@/components/DebtVerge";
+import { ClientPortalPage } from "@/components/ClientPortalPage";
 import { DebtVergeSignupWizard } from "@/components/DebtVergeSignupWizard";
 import { Spinner } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -22,6 +23,12 @@ function App() {
 function AppContent() {
   const { user, loading } = useAuth();
   const { theme } = useTheme();
+
+  // Public route: client payment link / portal page (no login)
+  const payMatch = window.location.pathname.match(/^\/pay\/([A-Za-z0-9]+)\/?$/);
+  if (payMatch) {
+    return <ErrorBoundary><ClientPortalPage token={payMatch[1]} /></ErrorBoundary>;
+  }
 
   if (loading) {
     return (
