@@ -55,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleNames, setRoleNames] = useState<string[]>([]);
 
   async function loadUserRole(userId: string, email?: string | null) {
+    // Join any organisation this email has been invited to (no-op when there is none)
+    await supabase.rpc("claim_org_invites").then(() => undefined, () => undefined);
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("role, is_super_admin, status")

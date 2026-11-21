@@ -60,6 +60,8 @@ import {
 import { OfferPackDrawer } from "@/components/debt/OfferPackDrawer";
 import { ReferralsButton, HandOverButton } from "@/components/debt/EcosystemHandovers";
 import { HomeScreen } from "@/components/HomeScreen";
+import { TeamScreen, AssigneeControl } from "@/components/TeamScreen";
+import { useAuth } from "@/lib/auth";
 import { CaseNextAction } from "@/components/debt/CaseNextAction";
 import { PaymentLinkButton, ChangeRequestsButton } from "@/components/debt/PortalAdviserTools";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
@@ -244,6 +246,8 @@ export function DebtVergeWorkspace({
   const [showPaymentLink, setShowPaymentLink] = useState(false);
   const [showHandOver, setShowHandOver] = useState(false);
   const [showSuitability, setShowSuitability] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
+  const { dvRole } = useAuth();
 
   // ── Workspace Agent Role & View Mode (DMP vs IVA dual workspace) ──
   const [agentRole, setAgentRole] = useState<DebtVergeAgentRole>(
@@ -382,10 +386,15 @@ export function DebtVergeWorkspace({
       <div className="flex w-64 shrink-0 flex-col sm:w-72">
         <div className="panel flex min-h-0 flex-1 flex-col p-3">
           <div className="mb-3 flex items-center justify-between">
-            <button onClick={() => setActiveCaseId(null)} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold transition-colors ${!selectedCase ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"}`} title="Home">
+            <button onClick={() => { setActiveCaseId(null); setShowTeam(false); }} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold transition-colors ${!selectedCase && !showTeam ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"}`} title="Home">
               <LayoutDashboard className="h-4 w-4" /> Home
             </button>
             <div className="flex items-center gap-1.5">
+              {dvRole !== "advisor" && (
+                <button onClick={() => { setActiveCaseId(null); setShowTeam(true); }} className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${showTeam && !selectedCase ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`} title="Team">
+                  <Users className="h-4 w-4" />
+                </button>
+              )}
               <ChangeRequestsButton onOpenCase={(id) => setActiveCaseId(id)} />
               <ReferralsButton onAccepted={async (id) => { await reload(); setActiveCaseId(id); }} />
               <button onClick={() => setShowNewCase(true)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700" title="New Case">
@@ -491,7 +500,7 @@ export function DebtVergeWorkspace({
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setActiveCaseId(c.id)}
+                    onClick={() => { setShowTeam(false); setActiveCaseId(c.id); }}
                     className={`group w-full rounded-xl border p-2.5 text-left transition-all ${
                       isActive
                         ? isIVACase
@@ -550,6 +559,7 @@ export function DebtVergeWorkspace({
                   {selectedCase.plan_type === "iva" && deriveIVAStatus(selectedCase) && (
                     <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${IVA_STATUS_META[deriveIVAStatus(selectedCase)!].color}`}>{IVA_STATUS_META[deriveIVAStatus(selectedCase)!].label}</span>
                   )}
+                  <AssigneeControl caseData={selectedCase} onChanged={reload} />
                 </div>
               </div>
               <div className="hidden items-center gap-4 md:flex">
@@ -680,7 +690,7 @@ export function DebtVergeWorkspace({
           <>
           {error && <div className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">{error}</div>}
           {!selectedCase && !showNewCase ? (
-            <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
+            showTeam ? <TeamScreen onOpenCase={(id) => { setShowTeam(false); setActiveCaseId(id); }} /> : <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
           ) : activeTab === "dashboard" ? (
             <DashboardTab caseId={activeCaseId} caseData={selectedCase} onTabChange={setActiveTab} appName={standaloneAppName} />
           ) : activeTab === "profile" ? (
@@ -1342,6 +1352,156 @@ function EmptyTabState({ icon, label }: { icon: React.ReactNode; label: string }
 }
 
 // ============================================================
+// Case Overview: one scannable page for a single case, from real data only
+// ============================================================
+
+function CaseOverview({ caseData, creditors, distributions, auditLog, onTabChange }: {
+  caseData: DebtCase;
+  creditors: DebtCreditor[];
+  distributions: DebtDistribution[];
+  auditLog: DebtAuditEntry[];
+  onTabChange: (t: Tab) => void;
+}) {
+  const { data: payments } = useDebtPayments(caseData.id);
+  const { data: sfs } = useDebtSfsEntries(caseData.id);
+
+  const paid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const left = Math.max(caseData.total_debt - paid, 0);
+  const pct = caseData.total_debt > 0 ? Math.min(100, Math.round((paid / caseData.total_debt) * 100)) : 0;
+  const monthly = Number(caseData.installment_amount ?? 0);
+  const monthsLeft = monthly > 0 ? Math.ceil(left / monthly) : null;
+  const dueIn = caseData.next_due_date ? Math.round((new Date(caseData.next_due_date).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000) : null;
+
+  const sum = (cat: DebtSfsCategory) => sfs.filter((e) => e.category === cat).reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const income = sum("income");
+  const essential = sum("essential_expense");
+  const discretionary = sum("discretionary_expense");
+  const repayments = sum("debt_repayment");
+  const disposable = income - essential - discretionary - repayments;
+
+  const totalBalance = creditors.reduce((s, c) => s + Number(c.current_balance ?? 0), 0);
+  const upcoming = distributions.filter((d) => d.status === "scheduled" && new Date(d.distribution_date) >= new Date()).slice(0, 3);
+  const recentPayments = [...payments].sort((a, b) => b.payment_date.localeCompare(a.payment_date)).slice(0, 5);
+
+  const Stat = ({ label, value, sub, tone = "" }: { label: string; value: string; sub?: string; tone?: string }) => (
+    <div className="panel p-4">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1.5 text-2xl font-bold text-slate-900 dark:text-slate-100 ${tone}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-slate-400">{sub}</p>}
+    </div>
+  );
+  const Head = ({ title, tab, link }: { title: string; tab?: Tab; link?: string }) => (
+    <div className="mb-3 flex items-center justify-between">
+      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{title}</h3>
+      {tab && <button onClick={() => onTabChange(tab)} className="text-xs font-semibold text-emerald-600 hover:underline">{link ?? "Open"}</button>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <Stat label="Total debt" value={formatCurrency(caseData.total_debt, "GBP")} sub={`${creditors.length} creditor${creditors.length === 1 ? "" : "s"}`} />
+        <Stat label="Paid so far" value={formatCurrency(paid, "GBP")} sub={`${pct}% of the debt`} tone="text-emerald-600" />
+        <Stat label="Left to pay" value={formatCurrency(left, "GBP")} sub={monthsLeft ? `About ${monthsLeft} month${monthsLeft === 1 ? "" : "s"} at the current payment` : undefined} />
+        <Stat label="Monthly payment" value={monthly ? formatCurrency(monthly, "GBP") : "Not set"} sub={caseData.next_due_date ? (dueIn !== null && dueIn < 0 ? `Overdue since ${formatDateShort(caseData.next_due_date)}` : `Next due ${formatDateShort(caseData.next_due_date)}`) : undefined} tone={dueIn !== null && dueIn < 0 ? "text-rose-600" : ""} />
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700" title={`${pct}% paid`}>
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="panel p-4">
+          <Head title="Creditors" tab="ledger" link="Open ledger" />
+          {creditors.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">No creditors added yet</p> : (
+            <div className="space-y-2.5">
+              {[...creditors].sort((a, b) => b.current_balance - a.current_balance).map((c) => (
+                <div key={c.id}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{c.creditor_name} {c.is_priority && <span className="ml-1 rounded bg-amber-100 px-1 text-[9px] font-bold text-amber-700">PRIORITY</span>}</p>
+                    <p className="shrink-0 text-sm font-bold text-slate-800 dark:text-slate-100">{formatCurrency(c.current_balance, "GBP")}</p>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"><div className="h-full rounded-full bg-blue-500" style={{ width: `${totalBalance ? (c.current_balance / totalBalance) * 100 : 0}%` }} /></div>
+                    <span className="w-20 shrink-0 text-right text-[10px] text-slate-400">{DEBT_TYPE_META[c.debt_type].label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="panel p-4">
+          <Head title="Monthly budget" tab="intake" link="Open budget" />
+          {sfs.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">No budget entered yet</p> : (
+            <div className="space-y-2 text-sm">
+              {[
+                ["Income", income, "text-emerald-600"],
+                ["Essential spending", -essential, ""],
+                ["Other spending", -discretionary, ""],
+                ["Debt repayments", -repayments, ""],
+              ].map(([l, v, t]) => (
+                <div key={l as string} className="flex items-center justify-between">
+                  <span className="text-slate-600 dark:text-slate-300">{l as string}</span>
+                  <span className={`font-semibold ${t as string}`}>{formatCurrency(v as number, "GBP")}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between border-t border-slate-100 pt-2 dark:border-slate-700">
+                <span className="font-bold text-slate-800 dark:text-slate-100">Disposable income</span>
+                <span className={`text-lg font-bold ${disposable >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatCurrency(disposable, "GBP")}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="panel p-4">
+          <Head title="Payments" tab="payment_schedule" link="Open payments" />
+          {recentPayments.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">No payments received yet</p> : (
+            <div className="space-y-1.5">
+              {recentPayments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm odd:bg-slate-50 dark:odd:bg-slate-800/60">
+                  <span className="text-slate-500">{formatDateShort(p.payment_date)}</span>
+                  {p.is_shortfall
+                    ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">Missed {formatCurrency(Number(p.shortfall_amount ?? 0), "GBP")}</span>
+                    : <span className="font-semibold text-slate-800 dark:text-slate-100">{formatCurrency(Number(p.amount), "GBP")}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          {upcoming.length > 0 && (
+            <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Next payouts to creditors</p>
+              {upcoming.map((d) => (
+                <div key={d.id} className="flex items-center justify-between py-0.5 text-xs text-slate-600 dark:text-slate-300">
+                  <span className="truncate">{creditors.find((c) => c.id === d.creditor_id)?.creditor_name ?? "Creditor"} · {formatDateShort(d.distribution_date)}</span>
+                  <span className="font-semibold">{formatCurrency(d.amount, "GBP")}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="panel p-4">
+          <Head title="Timeline" tab="compliance" link="Full history" />
+          {auditLog.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">No activity yet</p> : (
+            <ol className="relative space-y-3 border-l border-slate-200 pl-4 dark:border-slate-700">
+              {auditLog.slice(0, 6).map((e) => (
+                <li key={e.id} className="relative">
+                  <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{e.milestone}</p>
+                  {e.description && <p className="line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{e.description}</p>}
+                  <p className="text-[10px] text-slate-400">{formatDateShort(e.created_at)}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
 // Dashboard Tab
 // ============================================================
 
@@ -1358,26 +1518,6 @@ function DashboardTab({ caseId, caseData, onTabChange, appName = "DebtVerge" }: 
   const recoveryRate = totalDebtManaged > 0 ? Math.min(100, (totalDisposable / totalDebtManaged) * 100 * 12) : 0;
   const upcomingDistributions = distributions.filter((d) => d.status === "scheduled" && new Date(d.distribution_date) >= new Date());
 
-  // Debt composition for pie chart
-  const debtComposition = useMemo(() => {
-    const byType: Record<string, number> = {};
-    creditors.forEach((c) => {
-      const label = DEBT_TYPE_META[c.debt_type].label;
-      byType[label] = (byType[label] ?? 0) + c.current_balance;
-    });
-    return Object.entries(byType).map(([name, value]) => ({ name, value }));
-  }, [creditors]);
-
-  // Monthly collection trend (mock from distributions)
-  const collectionTrend = useMemo(() => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"];
-    return months.map((m, i) => ({
-      month: m,
-      collected: Math.round(800 + Math.random() * 400 + i * 150),
-      target: 1200 + i * 100,
-    }));
-  }, [caseId]);
-
   if (!caseData) return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1393,216 +1533,7 @@ function DashboardTab({ caseId, caseData, onTabChange, appName = "DebtVerge" }: 
     </div>
   );
 
-  const caseMeta = STATUS_META[caseData.status];
-  const totalCreditorBalance = creditors.reduce((s, c) => s + c.current_balance, 0);
-  const totalProRata = creditors.reduce((s, c) => s + c.pro_rata_amount, 0);
-
-  return (
-    <div className="space-y-4">
-      {/* Portfolio KPIs */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          icon={<Users className="h-4 w-4" />}
-          label="Active Cases"
-          value={String(activeCases.length)}
-          sub={`${allCases.length} total cases`}
-          accent="text-blue-600 bg-blue-50 dark:bg-blue-500/10"
-        />
-        <KpiCard
-          icon={<Wallet className="h-4 w-4" />}
-          label="Total Debt Under Management"
-          value={formatCurrency(totalDebtManaged, "GBP", { compact: true })}
-          sub={`Avg ${formatCurrency(totalDebtManaged / (allCases.length || 1), "GBP", { compact: true })} / case`}
-          accent="text-rose-600 bg-rose-50 dark:bg-rose-500/10"
-        />
-        <KpiCard
-          icon={<TrendingDown className="h-4 w-4" />}
-          label="Monthly Collection Recovery"
-          value={`${recoveryRate.toFixed(1)}%`}
-          sub={`${formatCurrency(totalDisposable, "GBP", { compact: true })} monthly disposable`}
-          accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10"
-        />
-        <KpiCard
-          icon={<Calendar className="h-4 w-4" />}
-          label="Upcoming Distributions"
-          value={String(upcomingDistributions.length)}
-          sub={caseData.next_distribution_date ? `Next: ${formatDateShort(caseData.next_distribution_date)}` : "None scheduled"}
-          accent="text-amber-600 bg-amber-50 dark:bg-amber-500/10"
-        />
-      </div>
-
-      {/* Case Status Banner */}
-      <div className="panel flex items-center gap-3 p-4 fade-in">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${caseMeta.color}`}>{caseMeta.icon}</div>
-        <div className="flex-1">
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{caseData.case_number} — {caseData.debtor_name}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Status: {caseMeta.label} · Plan: {caseData.plan_type.toUpperCase()}</p>
-        </div>
-        <button onClick={() => onTabChange("intake")} className="btn btn-secondary text-xs">
-          <FileCalc className="h-3.5 w-3.5" /> Open SFS
-        </button>
-        <button onClick={() => onTabChange("ledger")} className="btn btn-secondary text-xs">
-          <Landmark className="h-3.5 w-3.5" /> View Ledger
-        </button>
-        <VoipCallButton
-          applicationSource={appName}
-          caseData={caseData}
-          variant="button"
-          label="Make a VoIP Call"
-          className="text-xs"
-        />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Collection Trend */}
-        <div className="panel p-4 lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Collection Recovery Trend</h3>
-            <span className="flex items-center gap-1 text-xs text-emerald-600"><ArrowUpRight className="h-3 w-3" /> +12.3%</span>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={collectionTrend}>
-              <defs>
-                <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorTarget" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:opacity-20" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-              <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="collected" name="Collected" stroke="#10b981" strokeWidth={2} fill="url(#colorCollected)" />
-              <Area type="monotone" dataKey="target" name="Target" stroke="#3b82f6" strokeWidth={2} fill="url(#colorTarget)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Debt Composition Pie */}
-        <div className="panel p-4">
-          <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Debt Composition</h3>
-          {debtComposition.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={debtComposition} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
-                  {debtComposition.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-[240px] items-center justify-center text-xs text-slate-400">
-              <div className="text-center"><CreditCard className="mx-auto mb-2 h-8 w-8 opacity-30" />No creditors added</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Upcoming Distributions + Recent Audit */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Upcoming Distributions */}
-        <div className="panel p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Upcoming Creditor Distributions</h3>
-            <Bell className="h-4 w-4 text-amber-500" />
-          </div>
-          {upcomingDistributions.length > 0 ? (
-            <div className="space-y-2">
-              {upcomingDistributions.slice(0, 5).map((d) => {
-                const creditor = creditors.find((c) => c.id === d.creditor_id);
-                return (
-                  <div key={d.id} className="flex items-center gap-3 rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-500/10"><Send className="h-4 w-4 text-amber-600" /></div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{creditor?.creditor_name ?? "Unknown creditor"}</p>
-                      <p className="text-[10px] text-slate-400">{formatDateShort(d.distribution_date)}</p>
-                    </div>
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatCurrency(d.amount)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-6 text-slate-400">
-              <Calendar className="mb-2 h-7 w-7 opacity-30" />
-              <p className="text-xs">No upcoming distributions</p>
-            </div>
-          )}
-        </div>
-
-        {/* Recent Audit Milestones */}
-        <div className="panel p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Recent Case Activity</h3>
-            <button onClick={() => onTabChange("compliance")} className="text-xs text-emerald-600 hover:underline">View all</button>
-          </div>
-          {auditLog.length > 0 ? (
-            <div className="space-y-2">
-              {auditLog.slice(0, 5).map((entry) => (
-                <div key={entry.id} className="flex items-start gap-3">
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-500/10">
-                    {MILESTONE_ICONS[entry.milestone] ?? <FileText className="h-3.5 w-3.5 text-emerald-600" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{entry.milestone}</p>
-                    <p className="text-[10px] text-slate-400">{relativeTime(entry.created_at)}{entry.actor ? ` · ${entry.actor}` : ""}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-6 text-slate-400">
-              <ScrollText className="mb-2 h-7 w-7 opacity-30" />
-              <p className="text-xs">No activity recorded</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Annual SFS Review Tracker */}
-      <AnnualReviewTrackerWidget caseId={caseId} caseData={caseData} />
-
-      {/* Case Financial Summary */}
-      <div className="panel p-4">
-        <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Case Financial Summary</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <SummaryItem label="Total Creditor Balance" value={formatCurrency(totalCreditorBalance)} icon={<Landmark className="h-4 w-4" />} />
-          <SummaryItem label="Monthly Disposable Income" value={formatCurrency(caseData.monthly_disposable_income)} icon={<PiggyBank className="h-4 w-4" />} />
-          <SummaryItem label="Monthly Pro-Rata Distribution" value={formatCurrency(totalProRata)} icon={<Calculator className="h-4 w-4" />} />
-          <SummaryItem label="Recovery Rate Target" value={`${caseData.recovery_rate_target}%`} icon={<Percent className="h-4 w-4" />} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Customer Profile & Household Tab
-// ============================================================
-
-const TENURE_TYPE_OPTIONS: { value: DebtTenureType; label: string }[] = [
-  { value: "owned", label: "Owned" },
-  { value: "private_rented", label: "Private Rented" },
-  { value: "social_rented", label: "Social Rented" },
-  { value: "council", label: "Council" },
-  { value: "leased", label: "Leased" },
-  { value: "living_with_family", label: "Living with Family/Parents" },
-];
-
-function ProfileField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">{label}</label>
-      {children}
-    </div>
-  );
+  return <CaseOverview caseData={caseData} creditors={creditors} distributions={distributions} auditLog={auditLog} onTabChange={onTabChange} />;
 }
 
 function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string | null; caseData: DebtCase | null; onTabChange: (tab: string) => void }) {
