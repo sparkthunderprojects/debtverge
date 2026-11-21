@@ -58,6 +58,7 @@ import {
   seedIVADemoCases,
 } from "@/lib/debt-hooks";
 import { OfferPackDrawer } from "@/components/debt/OfferPackDrawer";
+import { ReferralsButton, HandOverButton } from "@/components/debt/EcosystemHandovers";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
 import { Modal, Field } from "@/components/projects/SharedUI";
 import {
@@ -376,9 +377,12 @@ export function DebtVergeWorkspace({
         <div className="panel flex min-h-0 flex-1 flex-col p-3">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Active Cases</h3>
-            <button onClick={() => setShowNewCase(true)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700" title="New Case">
-              <Plus className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <ReferralsButton onAccepted={async (id) => { await reload(); setActiveCaseId(id); }} />
+              <button onClick={() => setShowNewCase(true)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700" title="New Case">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Workspace View Toggle — DMP / IVA / All */}
@@ -708,6 +712,7 @@ export function DebtVergeWorkspace({
                 )}
               </div>
             )}
+            {selectedCase && standaloneAppName === "DebtVerge" && <HandOverButton caseData={selectedCase} />}
             {selectedCase && (
               <button onClick={() => setShowSolutionMatrix(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Compare DMP vs DRO vs IVA vs Settlement vs Bankruptcy">
                 <Columns3 className="h-3.5 w-3.5" /> Matrix
