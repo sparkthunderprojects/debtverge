@@ -437,7 +437,7 @@ AND NOT EXISTS (
 )
 ON CONFLICT DO NOTHING;
 
--- Map waheed@post.com (freelancer) as External Contractor in Stormreef HQ
+-- Map owner@example.com (freelancer) as External Contractor in Stormreef HQ
 INSERT INTO organization_users (user_id, organization_id, role_id)
 SELECT 'e1acf174-d420-4438-b271-95b6290225ff', r.organization_id, r.id
 FROM rbac_roles r
@@ -449,7 +449,7 @@ AND NOT EXISTS (
 )
 ON CONFLICT DO NOTHING;
 
--- Map typhoonengine4@gmail.com (staff) as Editor in Stormreef HQ
+-- Map staff@example.com (staff) as Editor in Stormreef HQ
 INSERT INTO organization_users (user_id, organization_id, role_id)
 SELECT '4cd13d52-ffb6-448f-a3fb-bab3e872dc66', r.organization_id, r.id
 FROM rbac_roles r
@@ -462,7 +462,7 @@ AND NOT EXISTS (
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
--- SEED: asset_access_links for the contractor (waheed@post.com)
+-- SEED: asset_access_links for the contractor (owner@example.com)
 -- Linked to Website Redesign 2026 project (85e1905d-8e5b-42b4-93ff-516f9a01ba77)
 -- ============================================================
 

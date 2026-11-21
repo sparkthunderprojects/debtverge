@@ -32,7 +32,7 @@ every internal dashboard AND the Freelancer Portal. Adds a trigger that enforces
 
 ## Data Updates
 - Sets `operator@test.com` profile role to 'super_admin' (the current admin account).
-- Ensures `waheed@post.com` profile role remains 'freelancer'.
+- Ensures `owner@example.com` profile role remains 'freelancer'.
 
 ## Important Notes
 1. Both triggers use `SECURITY DEFINER` and run as the postgres owner so they can
@@ -53,7 +53,7 @@ WHERE email = 'operator@test.com';
 -- Ensure the freelancer account stays freelancer
 UPDATE profiles
 SET role = 'freelancer'
-WHERE email = 'waheed@post.com';
+WHERE email = 'owner@example.com';
 
 -- ============================================================
 -- Trigger: Auto-create/upgrade profile on user signup
