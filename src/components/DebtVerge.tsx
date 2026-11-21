@@ -14,7 +14,7 @@ import {
   ThumbsUp, ThumbsDown, CircleDot, Sparkles,
   Upload, Banknote as BanknoteIcon, FileSpreadsheet, ArrowLeftRight,
   CalendarClock, ClipboardCheck, TrendingUp, RefreshCw, GitBranch,
-  Rocket, AlertTriangle, Activity, Pencil, Pause,
+  AlertTriangle, Activity, Pencil, Pause,
   Wind, Hourglass, BellOff,
   FileUp, CalendarCheck, ShieldX, FlaskConical,
   UserCog, FileCheck, Vote, FileSignature, Network, Smartphone, Building,
@@ -517,6 +517,16 @@ export function DebtVergeWorkspace({
                       <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{formatCurrency(c.total_debt, "USD", { compact: true })}</span>
                       <span className={`text-[10px] font-medium ${isIVACase ? "text-violet-500 dark:text-violet-400" : "text-emerald-500 dark:text-emerald-400"}`}>{isIVACase ? "IVA" : c.plan_type.toUpperCase()}</span>
                     </div>
+                    {c.next_due_date && (() => {
+                      const days = Math.round((new Date(c.next_due_date).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000);
+                      const overdue = days < 0;
+                      return (
+                        <div className={`mt-1 flex items-center gap-1 text-[10px] font-medium ${overdue ? "text-rose-600 dark:text-rose-400" : days <= 7 ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${overdue ? "bg-rose-500" : days <= 7 ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-600"}`} />
+                          {overdue ? `Payment ${Math.abs(days)}d overdue` : days === 0 ? "Payment due today" : `Next payment in ${days}d`}
+                        </div>
+                      );
+                    })()}
                   </button>
                 );
               })
@@ -722,12 +732,6 @@ export function DebtVergeWorkspace({
             <button onClick={() => setShowAIAssistant(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="AI Knowledge Assistant">
               <Sparkles className="h-3.5 w-3.5" /> Ask AI
             </button>
-            <button onClick={() => setShowNewCase(true)} className="btn btn-primary bg-emerald-600 px-2.5 py-1.5 text-xs hover:bg-emerald-700">
-              <Plus className="h-3.5 w-3.5" /> New
-            </button>
-            <a href="/debtverge/signup" className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Self-service sign-up wizard for new DM firms">
-              <Rocket className="h-3.5 w-3.5" /> Invite
-            </a>
           </div>
         </div>
 
