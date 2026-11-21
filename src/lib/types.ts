@@ -104,6 +104,8 @@ export interface DebtCase {
   preferred_payment_day?: string | null;
   installment_amount?: number | null;
   next_due_date?: string | null;
+  assigned_to?: string | null;
+  organization_id?: string | null;
 }
 
 export interface DebtCreditor {

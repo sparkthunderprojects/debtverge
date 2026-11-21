@@ -85,8 +85,8 @@ export function ReferralsButton({ onAccepted }: { onAccepted: (caseId: string) =
                   </div>
                   {h.reason && <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{h.reason}</p>}
                   <div className="mt-2 flex gap-4 text-[11px] text-slate-500 dark:text-slate-400">
-                    {h.payload.total_debt != null && <span>Debt <b>{formatCurrency(h.payload.total_debt, "USD", { compact: true })}</b></span>}
-                    {h.payload.monthly_disposable_income != null && <span>DI/mo <b>{formatCurrency(h.payload.monthly_disposable_income, "USD", { compact: true })}</b></span>}
+                    {h.payload.total_debt != null && <span>Debt <b>{formatCurrency(h.payload.total_debt, "GBP", { compact: true })}</b></span>}
+                    {h.payload.monthly_disposable_income != null && <span>DI/mo <b>{formatCurrency(h.payload.monthly_disposable_income, "GBP", { compact: true })}</b></span>}
                     {h.payload.creditors && <span>{h.payload.creditors.length} creditors</span>}
                   </div>
                   {h.status === "pending" && (

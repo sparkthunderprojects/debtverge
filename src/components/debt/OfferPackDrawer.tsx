@@ -185,7 +185,7 @@ export function OfferPackDrawer({ caseData, onClose }: Props) {
                       </div>
                       <div className="mt-1 flex items-center justify-between pl-6">
                         <span className="text-[10px] text-slate-400">
-                          {formatCurrency(c.current_balance, "USD", { compact: true })}
+                          {formatCurrency(c.current_balance, "GBP", { compact: true })}
                         </span>
                         <span className="text-[10px] font-semibold text-emerald-600">
                           {formatCurrency(proRata?.pro_rata_amount ?? 0)}/mo

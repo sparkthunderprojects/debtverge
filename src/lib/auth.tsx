@@ -3,6 +3,15 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { useUserEntitlements } from "./entitlement-hooks";
 
+export type DvRole = "advisor" | "team_manager" | "operations_manager" | "admin";
+
+function deriveDvRole(roleNames: string[], isAdminOrHigher: boolean): DvRole {
+  if (roleNames.includes("Operations Manager")) return "operations_manager";
+  if (roleNames.includes("Team Manager")) return "team_manager";
+  if (roleNames.includes("Admin") || isAdminOrHigher) return "admin";
+  return "advisor";
+}
+
 export type UserRole = "super_admin" | "admin" | "staff" | "freelancer" | "external_contractor" | "unknown";
 
 interface AuthContextValue {
@@ -18,6 +27,7 @@ interface AuthContextValue {
   isAdminOrHigher: boolean;
   isExternalContractor: boolean;
   organizationId: string | null;
+  dvRole: DvRole;
   permissions: Set<string>;
   hasModuleAccess: (module: string, action?: string) => boolean;
   canAccessApp: (appKey: string) => boolean;
@@ -42,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [isExternalContractor, setIsExternalContractor] = useState(false);
   const [orgIds, setOrgIds] = useState<string[]>([]);
+  const [roleNames, setRoleNames] = useState<string[]>([]);
 
   async function loadUserRole(userId: string, email?: string | null) {
     const { data: profile } = await supabase
@@ -66,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).filter(Boolean) as string[];
     const isContractor = roleNames.includes("External Contractor");
     setIsExternalContractor(isContractor);
+    setRoleNames(roleNames);
 
     // Track org IDs for subscription entitlement loading
     setOrgIds((memberships ?? []).map((m) => m.organization_id).filter(Boolean) as string[]);
@@ -162,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdminOrHigher,
       isExternalContractor,
       organizationId: orgIds[0] ?? null,
+      dvRole: deriveDvRole(roleNames, isAdminOrHigher),
       permissions,
       hasModuleAccess,
       canAccessApp,
@@ -184,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) await loadUserRole(session.user.id);
       },
     }),
-    [session, loading, role, freelancerProfileId, onboardingCompleted, impersonatingFreelancerId, isSuperAdmin, isAdmin, isAdminOrHigher, isExternalContractor, orgIds, permissions, hasModuleAccess, canAccessApp, subscriptionAppKeys, entitlementsLoading],
+    [session, loading, role, freelancerProfileId, onboardingCompleted, impersonatingFreelancerId, isSuperAdmin, isAdmin, isAdminOrHigher, isExternalContractor, orgIds, roleNames, permissions, hasModuleAccess, canAccessApp, subscriptionAppKeys, entitlementsLoading],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

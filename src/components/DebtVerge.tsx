@@ -59,6 +59,7 @@ import {
 } from "@/lib/debt-hooks";
 import { OfferPackDrawer } from "@/components/debt/OfferPackDrawer";
 import { ReferralsButton, HandOverButton } from "@/components/debt/EcosystemHandovers";
+import { HomeScreen } from "@/components/HomeScreen";
 import { PaymentLinkButton, ChangeRequestsButton } from "@/components/debt/PortalAdviserTools";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
 import { Modal, Field } from "@/components/projects/SharedUI";
@@ -338,8 +339,6 @@ export function DebtVergeWorkspace({
   useEffect(() => {
     if (initialCaseId && cases.some((c) => c.id === initialCaseId)) {
       setActiveCaseId(initialCaseId);
-    } else if (!activeCaseId && filteredCases.length > 0) {
-      setActiveCaseId(filteredCases[0].id);
     }
   }, [filteredCases, activeCaseId, setActiveCaseId, initialCaseId, cases]);
 
@@ -377,7 +376,9 @@ export function DebtVergeWorkspace({
       <div className="flex w-64 shrink-0 flex-col sm:w-72">
         <div className="panel flex min-h-0 flex-1 flex-col p-3">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Active Cases</h3>
+            <button onClick={() => setActiveCaseId(null)} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold transition-colors ${!selectedCase ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"}`} title="Home">
+              <LayoutDashboard className="h-4 w-4" /> Home
+            </button>
             <div className="flex items-center gap-1.5">
               <ChangeRequestsButton onOpenCase={(id) => setActiveCaseId(id)} />
               <ReferralsButton onAccepted={async (id) => { await reload(); setActiveCaseId(id); }} />
@@ -408,23 +409,6 @@ export function DebtVergeWorkspace({
                 {WORKSPACE_VIEW_META[vm].label}
               </button>
             ))}
-          </div>
-
-          {/* Agent Role Selector — admin/supervisor only can switch roles */}
-          <div className="mb-2 flex items-center gap-1.5">
-            <select
-              value={agentRole}
-              onChange={(e) => {
-                const newRole = e.target.value as DebtVergeAgentRole;
-                setAgentRole(newRole);
-                setViewMode(AGENT_ROLE_META[newRole].defaultView);
-              }}
-              className="input text-[11px]"
-            >
-              {(Object.keys(AGENT_ROLE_META) as DebtVergeAgentRole[]).map((r) => (
-                <option key={r} value={r}>{AGENT_ROLE_META[r].label}</option>
-              ))}
-            </select>
           </div>
 
           <div className="relative mb-2">
@@ -520,7 +504,7 @@ export function DebtVergeWorkspace({
                     </div>
                     <p className="mt-0.5 truncate text-sm font-medium text-slate-800 dark:text-slate-100">{c.debtor_name}</p>
                     <div className="mt-1 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{formatCurrency(c.total_debt, "USD", { compact: true })}</span>
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{formatCurrency(c.total_debt, "GBP", { compact: true })}</span>
                       <span className={`text-[10px] font-medium ${isIVACase ? "text-violet-500 dark:text-violet-400" : "text-emerald-500 dark:text-emerald-400"}`}>{isIVACase ? "IVA" : c.plan_type.toUpperCase()}</span>
                     </div>
                     {c.next_due_date && (() => {
@@ -659,11 +643,11 @@ export function DebtVergeWorkspace({
               )}
               <div className="hidden items-center gap-1.5 md:flex">
                 <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Debt</span>
-                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(selectedCase.total_debt, "USD", { compact: true })}</span>
+                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(selectedCase.total_debt, "GBP", { compact: true })}</span>
               </div>
               <div className="hidden items-center gap-1.5 md:flex">
                 <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">DI/mo</span>
-                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedCase.monthly_disposable_income, "USD", { compact: true })}</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedCase.monthly_disposable_income, "GBP", { compact: true })}</span>
               </div>
             </div>
           ) : (
@@ -777,39 +761,7 @@ export function DebtVergeWorkspace({
           <>
           {error && <div className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">{error}</div>}
           {!selectedCase && !showNewCase ? (
-            <div className="space-y-4">
-              {/* Welcome Hero */}
-              <div className="panel relative overflow-hidden p-6 fade-in">
-                <div className={`absolute right-0 top-0 h-48 w-48 rounded-full blur-3xl ${standaloneAppName === "IVAVerge" ? "bg-violet-500/5" : standaloneAppName === "DraftVerge" ? "bg-blue-500/5" : "bg-emerald-500/5"}`} />
-                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg ${standaloneAppName === "IVAVerge" ? "from-violet-600 to-violet-800" : standaloneAppName === "DraftVerge" ? "from-blue-600 to-blue-800" : "from-slate-700 to-slate-900"}`}>
-                      {standaloneAppName === "IVAVerge" ? <Gavel className="h-6 w-6" /> : standaloneAppName === "DraftVerge" ? <PenSquare className="h-6 w-6" /> : <Scale className="h-6 w-6" />}
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                      {standaloneAppName === "IVAVerge" ? "Welcome to IVA Verge" : standaloneAppName === "DraftVerge" ? "Welcome to Draft Verge" : "Welcome to Debt Verge"}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                      {standaloneAppName === "IVAVerge" ? "Formal insolvency supervision platform — manage active IVAs, annual reviews, and dividend distributions." : standaloneAppName === "DraftVerge" ? "IVA proposal drafting studio — draft proposals, issue MOC notices, track creditor voting, and generate Chairman's reports." : "Enterprise debt management platform — manage cases, creditors, SFS intake, and compliance."}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <button onClick={() => setShowNewCase(true)} className="btn btn-primary bg-emerald-600 text-sm hover:bg-emerald-700">
-                      <Plus className="h-4 w-4" /> Create Your First Case
-                    </button>
-                    <button
-                      onClick={() => { setSeeding(true); seedIVADemoCases().then(() => reload()).catch(() => {}).finally(() => setSeeding(false)); }}
-                      disabled={seeding}
-                      className="btn btn-secondary text-sm"
-                    >
-                      <Scale className="h-4 w-4" /> {seeding ? "Seeding..." : "Seed IVA Demo Cases"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {/* Portfolio KPIs even with no case selected */}
-              <DashboardTab caseId={null} caseData={null} onTabChange={setActiveTab} appName={standaloneAppName} />
-            </div>
+            <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
           ) : activeTab === "dashboard" ? (
             <DashboardTab caseId={activeCaseId} caseData={selectedCase} onTabChange={setActiveTab} appName={standaloneAppName} />
           ) : activeTab === "profile" ? (
@@ -1509,8 +1461,8 @@ function DashboardTab({ caseId, caseData, onTabChange, appName = "DebtVerge" }: 
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={<Users className="h-4 w-4" />} label="Active Cases" value={String(activeCases.length)} sub={`${allCases.length} total cases`} accent="text-blue-600 bg-blue-50 dark:bg-blue-500/10" />
-        <KpiCard icon={<Wallet className="h-4 w-4" />} label="Total Debt Under Management" value={formatCurrency(totalDebtManaged, "USD", { compact: true })} sub={`Avg ${allCases.length > 0 ? formatCurrency(totalDebtManaged / allCases.length, "USD", { compact: true }) : "$0"} / case`} accent="text-rose-600 bg-rose-50 dark:bg-rose-500/10" />
-        <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Monthly Collection Recovery" value={`${recoveryRate.toFixed(1)}%`} sub={`${formatCurrency(totalDisposable, "USD", { compact: true })} monthly disposable`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" />
+        <KpiCard icon={<Wallet className="h-4 w-4" />} label="Total Debt Under Management" value={formatCurrency(totalDebtManaged, "GBP", { compact: true })} sub={`Avg ${allCases.length > 0 ? formatCurrency(totalDebtManaged / allCases.length, "GBP", { compact: true }) : "$0"} / case`} accent="text-rose-600 bg-rose-50 dark:bg-rose-500/10" />
+        <KpiCard icon={<TrendingDown className="h-4 w-4" />} label="Monthly Collection Recovery" value={`${recoveryRate.toFixed(1)}%`} sub={`${formatCurrency(totalDisposable, "GBP", { compact: true })} monthly disposable`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" />
         <KpiCard icon={<Calendar className="h-4 w-4" />} label="Upcoming Distributions" value={String(upcomingDistributions.length)} sub="None scheduled" accent="text-amber-600 bg-amber-50 dark:bg-amber-500/10" />
       </div>
       <div className="panel flex flex-col items-center justify-center py-12 text-slate-400">
@@ -1538,15 +1490,15 @@ function DashboardTab({ caseId, caseData, onTabChange, appName = "DebtVerge" }: 
         <KpiCard
           icon={<Wallet className="h-4 w-4" />}
           label="Total Debt Under Management"
-          value={formatCurrency(totalDebtManaged, "USD", { compact: true })}
-          sub={`Avg ${formatCurrency(totalDebtManaged / (allCases.length || 1), "USD", { compact: true })} / case`}
+          value={formatCurrency(totalDebtManaged, "GBP", { compact: true })}
+          sub={`Avg ${formatCurrency(totalDebtManaged / (allCases.length || 1), "GBP", { compact: true })} / case`}
           accent="text-rose-600 bg-rose-50 dark:bg-rose-500/10"
         />
         <KpiCard
           icon={<TrendingDown className="h-4 w-4" />}
           label="Monthly Collection Recovery"
           value={`${recoveryRate.toFixed(1)}%`}
-          sub={`${formatCurrency(totalDisposable, "USD", { compact: true })} monthly disposable`}
+          sub={`${formatCurrency(totalDisposable, "GBP", { compact: true })} monthly disposable`}
           accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10"
         />
         <KpiCard
@@ -2614,8 +2566,8 @@ function CreditorLedgerTab({ caseId, caseData }: { caseId: string | null; caseDa
 
       {/* Ledger KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard icon={<Landmark className="h-4 w-4" />} label="Total Debt" value={formatCurrency(totalDebt, "USD", { compact: true })} sub={`${creditors.length} creditors`} accent="text-rose-600 bg-rose-50 dark:bg-rose-500/10" />
-        <KpiCard icon={<Calculator className="h-4 w-4" />} label="Live Pro-Rata" value={formatCurrency(totalLiveProRata, "USD", { compact: true })} sub={`From ${formatCurrency(caseData.monthly_disposable_income)} disposable`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" />
+        <KpiCard icon={<Landmark className="h-4 w-4" />} label="Total Debt" value={formatCurrency(totalDebt, "GBP", { compact: true })} sub={`${creditors.length} creditors`} accent="text-rose-600 bg-rose-50 dark:bg-rose-500/10" />
+        <KpiCard icon={<Calculator className="h-4 w-4" />} label="Live Pro-Rata" value={formatCurrency(totalLiveProRata, "GBP", { compact: true })} sub={`From ${formatCurrency(caseData.monthly_disposable_income)} disposable`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10" />
         <KpiCard icon={<Percent className="h-4 w-4" />} label="Monthly Interest" value={formatCurrency(totalInterest)} sub={totalInterest === 0 ? "All frozen" : "Across all debts"} accent="text-amber-600 bg-amber-50 dark:bg-amber-500/10" />
         <KpiCard icon={<Star className="h-4 w-4" />} label="Priority Debts" value={String(creditors.filter((c) => c.is_priority).length)} sub="Mortgage, council tax, utilities" accent="text-blue-600 bg-blue-50 dark:bg-blue-500/10" />
       </div>
@@ -3036,8 +2988,8 @@ function PayoffForecastTab({ caseId, caseData }: { caseId: string | null; caseDa
         <KpiCard
           icon={<Wallet className="h-4 w-4" />}
           label="Total Paid (DMP)"
-          value={formatCurrency(dmpProjection.totalPaid, "USD", { compact: true })}
-          sub={`From ${formatCurrency(totalDebt, "USD", { compact: true })} debt`}
+          value={formatCurrency(dmpProjection.totalPaid, "GBP", { compact: true })}
+          sub={`From ${formatCurrency(totalDebt, "GBP", { compact: true })} debt`}
           accent="text-blue-600 bg-blue-50 dark:bg-blue-500/10"
         />
         <KpiCard
@@ -3050,7 +3002,7 @@ function PayoffForecastTab({ caseId, caseData }: { caseId: string | null; caseDa
         <KpiCard
           icon={<PiggyBank className="h-4 w-4" />}
           label="DMP Savings"
-          value={formatCurrency(savingsVsOriginal, "USD", { compact: true })}
+          value={formatCurrency(savingsVsOriginal, "GBP", { compact: true })}
           sub={monthsSaved > 0 ? `${monthsSaved} months sooner` : "Same timeline"}
           accent="text-amber-600 bg-amber-50 dark:bg-amber-500/10"
         />
@@ -4250,9 +4202,9 @@ function DisbursementTab({ caseId, caseData }: { caseId: string | null; caseData
 
       {/* Header: KPIs + Log Payment Button */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard icon={<Wallet className="h-4 w-4" />} label="Expected Monthly" value={formatCurrency(expectedMonthly, "USD", { compact: true })} sub="Disposable income" accent="text-blue-600 bg-blue-50 dark:bg-blue-500/10" />
-        <KpiCard icon={<Banknote className="h-4 w-4" />} label="Received (Latest)" value={latestPayment ? formatCurrency(latestPayment.amount, "USD", { compact: true }) : "—"} sub={latestPayment ? formatDateShort(latestPayment.payment_date) : "No payments yet"} accent={latestPayment?.is_shortfall ? "text-amber-600 bg-amber-50 dark:bg-amber-500/10" : "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10"} />
-        <KpiCard icon={<Split className="h-4 w-4" />} label="Total Distributed" value={formatCurrency(totalDistributed, "USD", { compact: true })} sub={`${distributions.length} split records`} accent="text-purple-600 bg-purple-50 dark:bg-purple-500/10" />
+        <KpiCard icon={<Wallet className="h-4 w-4" />} label="Expected Monthly" value={formatCurrency(expectedMonthly, "GBP", { compact: true })} sub="Disposable income" accent="text-blue-600 bg-blue-50 dark:bg-blue-500/10" />
+        <KpiCard icon={<Banknote className="h-4 w-4" />} label="Received (Latest)" value={latestPayment ? formatCurrency(latestPayment.amount, "GBP", { compact: true }) : "—"} sub={latestPayment ? formatDateShort(latestPayment.payment_date) : "No payments yet"} accent={latestPayment?.is_shortfall ? "text-amber-600 bg-amber-50 dark:bg-amber-500/10" : "text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10"} />
+        <KpiCard icon={<Split className="h-4 w-4" />} label="Total Distributed" value={formatCurrency(totalDistributed, "GBP", { compact: true })} sub={`${distributions.length} split records`} accent="text-purple-600 bg-purple-50 dark:bg-purple-500/10" />
         <KpiCard icon={<Handshake className="h-4 w-4" />} label="Negotiations" value={String(negotiations.length)} sub={`${creditors.filter((c) => latestNegotiations.has(c.id)).length} creditors tracked`} accent="text-teal-600 bg-teal-50 dark:bg-teal-500/10" />
       </div>
 
@@ -4752,14 +4704,14 @@ function PaymentScheduleTab({ caseId, caseData }: { caseId: string | null; caseD
         <PaymentMetricCard
           icon={<Wallet className="h-4 w-4" />}
           label="Total Collected"
-          value={formatCurrency(totalCollected, "USD", { compact: true })}
+          value={formatCurrency(totalCollected, "GBP", { compact: true })}
           sub={`${transactions.filter((t) => t.status === "cleared").length} payments cleared`}
           accent="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
         />
         <PaymentMetricCard
           icon={<AlertTriangle className="h-4 w-4" />}
           label="Outstanding Arrears"
-          value={formatCurrency(outstandingArrears, "USD", { compact: true })}
+          value={formatCurrency(outstandingArrears, "GBP", { compact: true })}
           sub={`${transactions.filter((t) => t.status === "overdue" || t.status === "missed").length} missed/overdue`}
           accent="bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
         />
@@ -4767,7 +4719,7 @@ function PaymentScheduleTab({ caseId, caseData }: { caseId: string | null; caseD
           icon={<CalendarClock className="h-4 w-4" />}
           label="Next Due"
           value={nextScheduled ? formatDateShort(nextScheduled.dueDate) : "—"}
-          sub={nextScheduled ? formatCurrency(nextScheduled.amountDue, "USD", { compact: true }) : "No scheduled payments"}
+          sub={nextScheduled ? formatCurrency(nextScheduled.amountDue, "GBP", { compact: true }) : "No scheduled payments"}
           accent="bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400"
         />
         <PaymentMetricCard
@@ -4874,9 +4826,9 @@ function PaymentScheduleTab({ caseId, caseData }: { caseId: string | null; caseD
                     <tr key={txn.id} className="group transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/30">
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{formatDateShort(txn.dueDate)}</td>
                       <td className="px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-100">
-                        {formatCurrency(txn.amountDue, "USD", { compact: true })}
+                        {formatCurrency(txn.amountDue, "GBP", { compact: true })}
                         {txn.amountPaid > 0 && txn.amountPaid < txn.amountDue && (
-                          <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400">Paid: {formatCurrency(txn.amountPaid, "USD", { compact: true })}</span>
+                          <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400">Paid: {formatCurrency(txn.amountPaid, "GBP", { compact: true })}</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -5103,7 +5055,7 @@ function EditTransactionForm({ txn, onSave, onDelete, onCancel }: {
     <form onSubmit={handleSave} className="space-y-3">
       <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
         <p className="text-xs text-slate-400">Due Date</p>
-        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatDateShort(txn.dueDate)} · {formatCurrency(txn.amountDue, "USD")}</p>
+        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatDateShort(txn.dueDate)} · {formatCurrency(txn.amountDue, "GBP")}</p>
       </div>
       <Field label="Amount Paid">
         <div className="relative">
@@ -5303,7 +5255,7 @@ function NoActiveBreathingSpaceView({ caseId, caseData, creditors, hasHistory, o
           <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
             <p className="text-xs font-medium text-slate-400">Qualifying Debts</p>
             <p className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">{qualifyingCreditors.length}</p>
-            <p className="text-xs text-slate-400">{formatCurrency(totalQualifyingDebt, "USD", { compact: true })}</p>
+            <p className="text-xs text-slate-400">{formatCurrency(totalQualifyingDebt, "GBP", { compact: true })}</p>
           </div>
           <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
             <p className="text-xs font-medium text-slate-400">Excluded Debts</p>
@@ -5473,7 +5425,7 @@ function ActiveMoratoriumView({ breathingSpace, creditors, onReload, onCancel, o
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/50">
           <FileText className="h-3.5 w-3.5 text-slate-400" />
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {includedCreditors.length} creditor accounts frozen · {formatCurrency(totalFrozenDebt, "USD", { compact: true })} total debt under moratorium protection
+            {includedCreditors.length} creditor accounts frozen · {formatCurrency(totalFrozenDebt, "GBP", { compact: true })} total debt under moratorium protection
           </p>
         </div>
       </div>
@@ -5498,7 +5450,7 @@ function ActiveMoratoriumView({ breathingSpace, creditors, onReload, onCancel, o
                       <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{c.creditor_name}</p>
                       <p className="text-xs text-slate-400">{meta.label}</p>
                     </div>
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatCurrency(c.current_balance, "USD", { compact: true })}</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatCurrency(c.current_balance, "GBP", { compact: true })}</span>
                     <Snowflake className="h-3.5 w-3.5 text-blue-500" />
                   </div>
                 );
@@ -5924,7 +5876,7 @@ function BreathingSpaceInitiationModal({ caseId, caseData, creditors, onClose, o
                       <span className={meta.color}>{meta.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{c.creditor_name}</p>
-                        <p className="text-xs text-slate-400">{meta.label} · {formatCurrency(c.current_balance, "USD")}</p>
+                        <p className="text-xs text-slate-400">{meta.label} · {formatCurrency(c.current_balance, "GBP")}</p>
                       </div>
                     </button>
                   );
@@ -5946,7 +5898,7 @@ function BreathingSpaceInitiationModal({ caseId, caseData, creditors, onClose, o
                       <span className="opacity-40">{meta.icon}</span>
                       <div className="flex-1 min-w-0">
                         <p className="truncate text-sm font-medium text-slate-500 dark:text-slate-400">{c.creditor_name}</p>
-                        <p className="text-xs text-slate-400">{meta.label} · {formatCurrency(c.current_balance, "USD")}</p>
+                        <p className="text-xs text-slate-400">{meta.label} · {formatCurrency(c.current_balance, "GBP")}</p>
                       </div>
                       <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-700 dark:text-slate-400">Excluded</span>
                     </div>
@@ -5964,7 +5916,7 @@ function BreathingSpaceInitiationModal({ caseId, caseData, creditors, onClose, o
             {/* Selection Summary */}
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
               <span className="text-sm text-slate-600 dark:text-slate-300">{selectedCreditorIds.length} debts selected</span>
-              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatCurrency(totalSelectedDebt, "USD")}</span>
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatCurrency(totalSelectedDebt, "GBP")}</span>
             </div>
 
             <div className="flex gap-2">
@@ -5987,7 +5939,7 @@ function BreathingSpaceInitiationModal({ caseId, caseData, creditors, onClose, o
                 {type === "standard" && (
                   <ConfirmRow label="End Date" value={formatDateShort(new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString())} />
                 )}
-                <ConfirmRow label="Included Debts" value={`${selectedCreditorIds.length} creditors · ${formatCurrency(totalSelectedDebt, "USD")}`} />
+                <ConfirmRow label="Included Debts" value={`${selectedCreditorIds.length} creditors · ${formatCurrency(totalSelectedDebt, "GBP")}`} />
                 {type === "mental_health_crisis" && (
                   <>
                     <ConfirmRow label="AMHP Evidence" value={amhpFileName ?? "Not uploaded"} />
