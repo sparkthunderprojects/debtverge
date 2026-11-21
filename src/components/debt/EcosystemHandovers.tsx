@@ -108,10 +108,12 @@ export function ReferralsButton({ onAccepted }: { onAccepted: (caseId: string) =
 }
 
 /** Header action: hand the open case on to Drafting or IVA with a data snapshot. */
-export function HandOverButton({ caseData }: { caseData: DebtCase }) {
+export function HandOverButton({ caseData, controlled }: { caseData: DebtCase; controlled?: { open: boolean; onClose: () => void } }) {
   const platforms = usePlatforms();
   const { outbound, reload } = useHandovers();
-  const [open, setOpen] = useState(false);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlled ? controlled.open : innerOpen;
+  const setOpen = (v: boolean) => { if (controlled) { if (!v) controlled.onClose(); } else setInnerOpen(v); };
   const [target, setTarget] = useState<PlatformKey>("draftverge");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -128,9 +130,9 @@ export function HandOverButton({ caseData }: { caseData: DebtCase }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Hand this case over to another platform">
+      {!controlled && (<button onClick={() => setOpen(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Hand this case over to another platform">
         <Send className="h-3.5 w-3.5" /> Hand over
-      </button>
+      </button>)}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>

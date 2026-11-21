@@ -14,7 +14,7 @@ import {
   ThumbsUp, ThumbsDown, CircleDot, Sparkles,
   Upload, Banknote as BanknoteIcon, FileSpreadsheet, ArrowLeftRight,
   CalendarClock, ClipboardCheck, TrendingUp, RefreshCw, GitBranch,
-  AlertTriangle, Activity, Pencil, Pause,
+  AlertTriangle, Activity, Pencil, Pause, MoreHorizontal, Link2, ChevronDown,
   Wind, Hourglass, BellOff,
   FileUp, CalendarCheck, ShieldX, FlaskConical,
   UserCog, FileCheck, Vote, FileSignature, Network, Smartphone, Building,
@@ -60,6 +60,7 @@ import {
 import { OfferPackDrawer } from "@/components/debt/OfferPackDrawer";
 import { ReferralsButton, HandOverButton } from "@/components/debt/EcosystemHandovers";
 import { HomeScreen } from "@/components/HomeScreen";
+import { CaseNextAction } from "@/components/debt/CaseNextAction";
 import { PaymentLinkButton, ChangeRequestsButton } from "@/components/debt/PortalAdviserTools";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
 import { Modal, Field } from "@/components/projects/SharedUI";
@@ -238,6 +239,11 @@ export function DebtVergeWorkspace({
   const [portalRole, setPortalRole] = useState<DebtVergePortalRole>("advisor_ip");
   const [showPortalMenu, setShowPortalMenu] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showTabMenu, setShowTabMenu] = useState(false);
+  const [showPaymentLink, setShowPaymentLink] = useState(false);
+  const [showHandOver, setShowHandOver] = useState(false);
+  const [showSuitability, setShowSuitability] = useState(false);
 
   // ── Workspace Agent Role & View Mode (DMP vs IVA dual workspace) ──
   const [agentRole, setAgentRole] = useState<DebtVergeAgentRole>(
@@ -527,226 +533,139 @@ export function DebtVergeWorkspace({
 
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-4">
-        {/* Compact Sticky Debtor Header */}
+        {/* Case header: identity on the left, three everyday actions and one menu on the right */}
         <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur dark:border-slate-700 dark:bg-slate-800/95">
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${standaloneAppName === "IVAVerge" ? "from-violet-600 to-violet-800" : standaloneAppName === "DraftVerge" ? "from-blue-600 to-blue-800" : "from-slate-700 to-slate-900"} text-white shadow-md`}>
-            {standaloneAppName === "IVAVerge" ? <Gavel className="h-5 w-5" /> : standaloneAppName === "DraftVerge" ? <PenSquare className="h-5 w-5" /> : <Scale className="h-5 w-5" />}
-          </div>
-          {/* Top-Bar Workspace Switcher — DMP / IVA / All Cases */}
-          <div className="flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-700/50">
-            {(["dmp", "draft", "iva", "all"] as WorkspaceViewMode[]).filter((vm) => {
-              if (forceViewMode) return vm === forceViewMode;
-              return true;
-            }).map((vm) => (
-              <button
-                key={vm}
-                onClick={() => {
-                  setViewMode(vm);
-                  if (vm === "dmp") setAgentRole("dmp_agent");
-                  else if (vm === "draft") setAgentRole("draft_agent");
-                  else if (vm === "iva") setAgentRole("iva_agent");
-                  else setAgentRole("admin_supervisor");
-                }}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
-                  viewMode === vm
-                    ? `${WORKSPACE_VIEW_META[vm].color} text-white shadow-sm`
-                    : "text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
-                }`}
-              >
-                {vm === "dmp" && <LayoutDashboard className="h-3.5 w-3.5" />}
-                {vm === "draft" && <PenSquare className="h-3.5 w-3.5" />}
-                {vm === "iva" && <Scale className="h-3.5 w-3.5" />}
-                {vm === "all" && <Layers className="h-3.5 w-3.5" />}
-                {WORKSPACE_VIEW_META[vm].label}
-              </button>
-            ))}
-          </div>
           {selectedCase ? (
-            <div className="flex flex-1 items-center gap-3 overflow-hidden">
-              <div className="min-w-0">
+            <>
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${standaloneAppName === "IVAVerge" ? "from-violet-600 to-violet-800" : standaloneAppName === "DraftVerge" ? "from-blue-600 to-blue-800" : "from-slate-700 to-slate-900"} text-white shadow-md`}>
+                {standaloneAppName === "IVAVerge" ? <Gavel className="h-5 w-5" /> : standaloneAppName === "DraftVerge" ? <PenSquare className="h-5 w-5" /> : <Scale className="h-5 w-5" />}
+              </div>
+              <div className="min-w-0 flex-1">
                 <h2 className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{selectedCase.debtor_name}</h2>
-                <div className="flex items-center gap-1.5">
-                  <p className="truncate text-[11px] text-slate-400">{selectedCase.case_number}</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="text-[11px] text-slate-400">{selectedCase.case_number}</p>
+                  <button onClick={() => setShowPipelineSwitcher(true)} className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${pipelineMeta.color} hover:opacity-90`} title="Switch solution pipeline">
+                    {pipelineMeta.label} <ChevronDown className="h-2.5 w-2.5 opacity-70" />
+                  </button>
                   {selectedCase.plan_type === "iva" && deriveIVAStatus(selectedCase) && (
-                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${IVA_STATUS_META[deriveIVAStatus(selectedCase)!].color}`}>
-                      {IVA_STATUS_META[deriveIVAStatus(selectedCase)!].label}
-                    </span>
+                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${IVA_STATUS_META[deriveIVAStatus(selectedCase)!].color}`}>{IVA_STATUS_META[deriveIVAStatus(selectedCase)!].label}</span>
                   )}
                 </div>
               </div>
-              {portalRole === "advisor_ip" && (
-                <button
-                  onClick={() => setShowPipelineSwitcher(true)}
-                  className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold text-white ${pipelineMeta.color} hover:opacity-90`}
-                  title="Switch solution pipeline"
-                >
-                  {pipelineMeta.label}
-                  <ChevronRight className="h-2.5 w-2.5 rotate-90 opacity-70" />
-                </button>
-              )}
-              <button
-                onClick={() => setShowPipelineSwitcher(true)}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-blue-500 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
-                title="Transfer / Pivot Solution"
-              >
-                <ArrowLeftRight className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Transfer / Pivot</span>
-                <span className="sm:hidden">Transfer</span>
-              </button>
-              {onTransferToIVAVerge && selectedCase && (
-                <button
-                  onClick={async () => {
-                    if (selectedCase.plan_type !== "iva") {
-                      await transferSolution(selectedCase.id, "IVA", "Cross-app escalation to IVAVerge — formal insolvency required");
-                    }
-                    onTransferToIVAVerge(selectedCase.id);
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-violet-500 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-600 transition-all hover:bg-violet-100 dark:border-violet-400 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20"
-                  title="Escalate / Transfer this case to IVAVerge (IVA formal insolvency)"
-                >
-                  <Gavel className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">Escalate to IVAVerge</span>
-                  <span className="lg:hidden">IVA</span>
-                </button>
-              )}
-              {onTransferToDraftVerge && selectedCase && (
-                <button
-                  onClick={async () => {
-                    if (selectedCase.plan_type !== "iva") {
-                      await transferSolution(selectedCase.id, "IVA", "Cross-app escalation to DraftVerge — IVA proposal drafting required");
-                    }
-                    onTransferToDraftVerge(selectedCase.id);
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-blue-500 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600 transition-all hover:bg-blue-100 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
-                  title="Escalate to DraftVerge for IVA proposal drafting & MOC"
-                >
-                  <PenSquare className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">Escalate to DraftVerge</span>
-                  <span className="lg:hidden">Draft</span>
-                </button>
-              )}
-              {onTransferToDebtVerge && selectedCase && (
-                <button
-                  onClick={async () => {
-                    if (selectedCase.plan_type !== "dmp") {
-                      await transferSolution(selectedCase.id, "DMP", "Cross-app pivot to DebtVerge — informal debt management appropriate");
-                    }
-                    onTransferToDebtVerge(selectedCase.id);
-                  }}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600 transition-all hover:bg-emerald-100 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
-                  title="Pivot / Transfer this case to DebtVerge (DMP informal debt management)"
-                >
-                  <Scale className="h-3.5 w-3.5" />
-                  <span className="hidden lg:inline">Pivot to DebtVerge</span>
-                  <span className="lg:hidden">DMP</span>
-                </button>
-              )}
-              <div className="hidden items-center gap-1.5 md:flex">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Debt</span>
-                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(selectedCase.total_debt, "GBP", { compact: true })}</span>
+              <div className="hidden items-center gap-4 md:flex">
+                <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Debt</p><p className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatCurrency(selectedCase.total_debt, "GBP", { compact: true })}</p></div>
+                <div><p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">DI / month</p><p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedCase.monthly_disposable_income, "GBP", { compact: true })}</p></div>
               </div>
-              <div className="hidden items-center gap-1.5 md:flex">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">DI/mo</span>
-                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedCase.monthly_disposable_income, "GBP", { compact: true })}</span>
+              {portalRole !== "advisor_ip" && (
+                <button onClick={() => setPortalRole("advisor_ip")} className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+                  Previewing {PORTAL_ROLE_META[portalRole].label} <X className="h-3 w-3" />
+                </button>
+              )}
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setShowPaymentLink(true)} className="btn btn-primary bg-emerald-600 px-3 py-1.5 text-xs hover:bg-emerald-700" title="Create a no-login payment link for the client">
+                  <Link2 className="h-3.5 w-3.5" /> Payment link
+                </button>
+                <VoipCallButton applicationSource={standaloneAppName || "DebtVerge"} caseData={selectedCase} variant="icon" className="px-2.5 py-1.5" />
+                <IncomeCalcButton portal={standaloneAppName === "IVAVerge" ? "IVAVerge" : standaloneAppName === "DraftVerge" ? "DraftVerge" : "DebtVerge"} variant="icon" className="px-2.5 py-1.5" />
+                <button onClick={() => setShowAIAssistant(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Ask AI"><Sparkles className="h-3.5 w-3.5" /></button>
+                <div className="relative">
+                  <button onClick={() => setShowMoreMenu((v) => !v)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="More actions"><MoreHorizontal className="h-4 w-4" /></button>
+                  {showMoreMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowMoreMenu(false)} />
+                      <div className="absolute right-0 top-full z-20 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                        {([
+                          { icon: <Send className="h-4 w-4" />, label: "Hand over to another platform", onClick: () => setShowHandOver(true), show: standaloneAppName === "DebtVerge" },
+                          { icon: <ArrowLeftRight className="h-4 w-4" />, label: "Transfer / pivot solution", onClick: () => setShowPipelineSwitcher(true), show: true },
+                          { icon: <Mail className="h-4 w-4" />, label: "Creditor offer packs", onClick: () => setShowOfferPack(true), show: true },
+                          { icon: <Columns3 className="h-4 w-4" />, label: "Compare solutions (matrix)", onClick: () => setShowSolutionMatrix(true), show: true },
+                          { icon: <Gavel className="h-4 w-4" />, label: "Escalate to IVAVerge", show: !!onTransferToIVAVerge, onClick: async () => { if (selectedCase.plan_type !== "iva") await transferSolution(selectedCase.id, "IVA", "Cross-app escalation to IVAVerge - formal insolvency required"); onTransferToIVAVerge?.(selectedCase.id); } },
+                          { icon: <PenSquare className="h-4 w-4" />, label: "Escalate to DraftVerge", show: !!onTransferToDraftVerge, onClick: async () => { if (selectedCase.plan_type !== "iva") await transferSolution(selectedCase.id, "IVA", "Cross-app escalation to DraftVerge - IVA proposal drafting required"); onTransferToDraftVerge?.(selectedCase.id); } },
+                          { icon: <Scale className="h-4 w-4" />, label: "Pivot to DebtVerge (DMP)", show: !!onTransferToDebtVerge, onClick: async () => { if (selectedCase.plan_type !== "dmp") await transferSolution(selectedCase.id, "DMP", "Cross-app pivot to DebtVerge - informal debt management appropriate"); onTransferToDebtVerge?.(selectedCase.id); } },
+                        ] as { icon: React.ReactNode; label: string; onClick: () => void | Promise<void>; show: boolean }[]).filter((m) => m.show).map((m) => (
+                          <button key={m.label} onClick={() => { setShowMoreMenu(false); void m.onClick(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700">
+                            {m.icon}{m.label}
+                          </button>
+                        ))}
+                        <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                        <p className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">Preview as</p>
+                        {(Object.keys(PORTAL_ROLE_META) as DebtVergePortalRole[]).filter((r) => r !== "advisor_ip").map((r) => (
+                          <button key={r} onClick={() => { setPortalRole(r); setShowMoreMenu(false); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700">
+                            {PORTAL_ROLE_META[r].icon}{PORTAL_ROLE_META[r].label}
+                          </button>
+                        ))}
+                        <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                        <button onClick={async () => { setShowMoreMenu(false); if (confirm(`Delete case ${selectedCase.case_number}? This cannot be undone.`)) { await deleteDebtCase(selectedCase.id); setActiveCaseId(null); reload(); } }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">
+                          <Trash2 className="h-4 w-4" /> Delete case
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           ) : (
             <div className="flex-1">
-              <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                {standaloneAppName === "IVAVerge" ? "IVA Verge" : standaloneAppName === "DraftVerge" ? "Draft Verge" : "Debt Verge"}
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                {standaloneAppName === "IVAVerge" ? "Formal Insolvency & IP Supervision" : standaloneAppName === "DraftVerge" ? "IVA Drafting, MOC & Creditor Voting" : "Enterprise Debt Management Platform"}
-              </p>
+              <h2 className="text-sm font-bold tracking-tight text-slate-900 dark:text-slate-100">{standaloneAppName === "IVAVerge" ? "IVA Verge" : standaloneAppName === "DraftVerge" ? "Draft Verge" : "Debt Verge"}</h2>
+              <p className="text-[11px] text-slate-400">Select a case, or use Home for what needs doing today</p>
             </div>
           )}
-          {/* Action buttons — all preserved */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {selectedCase && (
-              <button onClick={() => setShowOfferPack(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Generate DMP offer letters for creditors">
-                <Mail className="h-3.5 w-3.5" /> Offer Packs
-              </button>
-            )}
-            {selectedCase && (
-              <div className="relative shrink-0">
-                <button onClick={() => setShowPortalMenu(!showPortalMenu)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Switch portal view">
-                  {PORTAL_ROLE_META[portalRole].icon}
-                  {PORTAL_ROLE_META[portalRole].label}
-                  <ChevronRight className="h-3 w-3 rotate-90 opacity-70" />
-                </button>
-                {showPortalMenu && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowPortalMenu(false)} />
-                    <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
-                      {(Object.keys(PORTAL_ROLE_META) as DebtVergePortalRole[]).map((role) => (
-                        <button
-                          key={role}
-                          onClick={() => { setPortalRole(role); setShowPortalMenu(false); }}
-                          className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-all ${
-                            portalRole === role ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700"
-                          }`}
-                        >
-                          {PORTAL_ROLE_META[role].icon}
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium">{PORTAL_ROLE_META[role].label}</p>
-                            <p className="text-[10px] text-slate-400">{PORTAL_ROLE_META[role].description}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            {selectedCase && <PaymentLinkButton caseData={selectedCase} />}
-            {selectedCase && standaloneAppName === "DebtVerge" && <HandOverButton caseData={selectedCase} />}
-            {selectedCase && (
-              <button onClick={() => setShowSolutionMatrix(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Compare DMP vs DRO vs IVA vs Settlement vs Bankruptcy">
-                <Columns3 className="h-3.5 w-3.5" /> Matrix
-              </button>
-            )}
-            <IncomeCalcButton
-              portal={standaloneAppName === "IVAVerge" ? "IVAVerge" : standaloneAppName === "DraftVerge" ? "DraftVerge" : "DebtVerge"}
-              variant="icon"
-              className="px-2.5 py-1.5"
-            />
-            <VoipCallButton
-              applicationSource={standaloneAppName || "DebtVerge"}
-              caseData={selectedCase}
-              variant="icon"
-              className="px-2.5 py-1.5"
-            />
-            {selectedCase && (
-              <button onClick={async () => { if (confirm(`Delete case ${selectedCase.case_number}? This cannot be undone.`)) { await deleteDebtCase(selectedCase.id); setActiveCaseId(null); reload(); } }} className="btn btn-ghost px-2 py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10" title="Delete case">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            )}
-            <button onClick={() => setShowAIAssistant(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="AI Knowledge Assistant">
-              <Sparkles className="h-3.5 w-3.5" /> Ask AI
-            </button>
-          </div>
+          {!selectedCase && (
+            <button onClick={() => setShowAIAssistant(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Ask AI"><Sparkles className="h-3.5 w-3.5" /> Ask AI</button>
+          )}
         </div>
+
+        {selectedCase && (
+          <CaseNextAction caseData={selectedCase} onSendLink={() => setShowPaymentLink(true)} onGoTab={(t) => setActiveTab(t as Tab)} />
+        )}
 
         {/* Solution Suitability Matrix — overview/profile tabs only */}
         {selectedCase && suitabilityScores.length > 0 && showAssessmentWidgets && (
-          <SuitabilityMatrixBar scores={suitabilityScores} currentPipeline={currentPipeline} />
+          <div>
+            <button onClick={() => setShowSuitability((v) => !v)} className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 dark:text-slate-400">
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showSuitability ? "" : "-rotate-90"}`} /> Solution suitability
+            </button>
+            {showSuitability && <div className="mt-2"><SuitabilityMatrixBar scores={suitabilityScores} currentPipeline={currentPipeline} /></div>}
+          </div>
         )}
 
-{/* Tabs */}
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800">
-          {tabsToShow.map((tabId) => (
-            <button
-              key={tabId}
-              onClick={() => setActiveTab(tabId)}
-              className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
-                activeTab === tabId ? `${standaloneAppName === "IVAVerge" ? "bg-violet-600 shadow-violet-600/20" : standaloneAppName === "DraftVerge" ? "bg-blue-600 shadow-blue-600/20" : "bg-emerald-600 shadow-emerald-600/20"} text-white shadow-sm` : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700"
-              }`
-            }
-          >
-            {TAB_ICONS[tabId]}{PIPELINE_TAB_LABELS[tabId]}
-          </button>
-        ))}
-        </div>
+        {/* Tabs: everyday tabs in the bar, the rest under "More" */}
+        {(() => {
+          const PRIMARY: Tab[] = ["dashboard", "profile", "intake", "ledger", "payment_schedule", "communications", "vulnerability"];
+          const primary = tabsToShow.filter((t) => PRIMARY.includes(t));
+          const more = tabsToShow.filter((t) => !PRIMARY.includes(t));
+          const accent = standaloneAppName === "IVAVerge" ? "bg-violet-600 shadow-violet-600/20" : standaloneAppName === "DraftVerge" ? "bg-blue-600 shadow-blue-600/20" : "bg-emerald-600 shadow-emerald-600/20";
+          const moreActive = more.includes(activeTab);
+          const cls = (on: boolean) => `flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${on ? `${accent} text-white shadow-sm` : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700"}`;
+          return (
+            <div className="relative flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800">
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+                {primary.map((tabId) => (
+                  <button key={tabId} onClick={() => setActiveTab(tabId)} className={cls(activeTab === tabId)}>{TAB_ICONS[tabId]}{PIPELINE_TAB_LABELS[tabId]}</button>
+                ))}
+              </div>
+              {more.length > 0 && (
+                <div className="relative shrink-0">
+                  <button onClick={() => setShowTabMenu((v) => !v)} className={cls(moreActive)}>
+                    {moreActive ? <>{TAB_ICONS[activeTab]}{PIPELINE_TAB_LABELS[activeTab]}</> : "More"} <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  {showTabMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowTabMenu(false)} />
+                      <div className="absolute right-0 top-full z-20 mt-1 max-h-96 w-60 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                        {more.map((tabId) => (
+                          <button key={tabId} onClick={() => { setActiveTab(tabId); setShowTabMenu(false); }} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm ${activeTab === tabId ? "bg-emerald-50 font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"}`}>
+                            {TAB_ICONS[tabId]}{PIPELINE_TAB_LABELS[tabId]}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Tab Content — full-height workspace, independent scroll, zero double scrollbars */}
         <div
@@ -885,6 +804,8 @@ export function DebtVergeWorkspace({
         library={standaloneAppName === "IVAVerge" ? "ivaverge" : standaloneAppName === "DraftVerge" ? "draftverge" : "debtverge"}
       />
       {showNewCase && <NewCaseModal onClose={() => setShowNewCase(false)} onCreated={async (id) => { await reload(); setActiveCaseId(id); setShowNewCase(false); }} />}
+      {selectedCase && <PaymentLinkButton caseData={selectedCase} controlled={{ open: showPaymentLink, onClose: () => setShowPaymentLink(false) }} />}
+      {selectedCase && <HandOverButton caseData={selectedCase} controlled={{ open: showHandOver, onClose: () => setShowHandOver(false) }} />}
       {showOfferPack && selectedCase && <OfferPackDrawer caseData={selectedCase} onClose={() => setShowOfferPack(false)} />}
       {showSolutionMatrix && selectedCase && (
         <SolutionSuitabilityMatrixModal caseData={selectedCase} caseId={activeCaseId} onClose={() => setShowSolutionMatrix(false)} />

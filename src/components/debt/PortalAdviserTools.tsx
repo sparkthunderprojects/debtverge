@@ -18,8 +18,10 @@ async function orgIdForCase(caseId: string): Promise<string> {
 }
 
 /** Case header action: create a no-login payment link and copy it to send to the client. */
-export function PaymentLinkButton({ caseData }: { caseData: DebtCase }) {
-  const [open, setOpen] = useState(false);
+export function PaymentLinkButton({ caseData, controlled }: { caseData: DebtCase; controlled?: { open: boolean; onClose: () => void } }) {
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = controlled ? controlled.open : innerOpen;
+  const setOpen = (v: boolean) => { if (controlled) { if (!v) controlled.onClose(); } else setInnerOpen(v); };
   const defaultAmount = caseData.installment_amount ?? caseData.monthly_disposable_income ?? 0;
   const [amount, setAmount] = useState(String(defaultAmount || ""));
   const [reason, setReason] = useState("Missed payment");
@@ -47,9 +49,9 @@ export function PaymentLinkButton({ caseData }: { caseData: DebtCase }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Create a no-login payment link for the client">
+      {!controlled && (<button onClick={() => setOpen(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Create a no-login payment link for the client">
         <Link2 className="h-3.5 w-3.5" /> Payment link
-      </button>
+      </button>)}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
