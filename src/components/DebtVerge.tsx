@@ -1501,6 +1501,26 @@ function CaseOverview({ caseData, creditors, distributions, auditLog, onTabChang
 }
 
 
+function FoldCard({ title, icon, saved, summary, defaultOpen, children }: { title: React.ReactNode; icon: React.ReactNode; saved?: React.ReactNode; summary: string; defaultOpen: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="panel p-5 fade-in">
+      <button onClick={() => setOpen((v) => !v)} className={`flex w-full items-center justify-between gap-3 text-left ${open ? "mb-4" : ""}`}>
+        <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+          {icon}
+          <span className="flex items-center gap-2">{title}</span>
+          {!open && <span className="ml-2 truncate text-xs font-normal text-slate-400">{summary}</span>}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {saved}
+          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? "" : "-rotate-90"}`} />
+        </span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 // ============================================================
 // Dashboard Tab
 // ============================================================
@@ -1714,7 +1734,8 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
             Guideline monthly allowance: <span className="font-bold text-teal-600 dark:text-teal-400">{formatCurrency(sfsThresholds.totalMonthlyAllowance)}</span>
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+        <details className="w-full text-xs"><summary className="cursor-pointer font-semibold text-emerald-600">Show allowance breakdown</summary>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
           <div className="rounded-lg bg-slate-50 px-3 py-1.5 text-center dark:bg-slate-800">
             <p className="text-slate-400">Groceries</p>
             <p className="font-bold text-slate-700 dark:text-slate-200">{formatCurrency(sfsThresholds.groceryAllowance)}</p>
@@ -1732,17 +1753,11 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
             <p className="font-bold text-slate-700 dark:text-slate-200">{formatCurrency(sfsThresholds.clothingAllowance)}</p>
           </div>
         </div>
+        </details>
       </div>
 
       {/* Card 1: Personal & Contact Information */}
-      <div className="panel p-5 fade-in">
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10"><User className="h-4 w-4 text-blue-600 dark:text-blue-400" /></span>
-            Personal & Contact Information
-          </h4>
-          {autoSavedFields.has("personal") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>}
-        </div>
+      <FoldCard title={<>Personal & Contact Information</>} icon={<span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10"><User className="h-4 w-4 text-blue-600 dark:text-blue-400" /></span>} saved={autoSavedFields.has("personal") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>} summary={`${[mobilePhone, primaryEmail].filter(Boolean).join(" · ") || "No contact details yet"}`} defaultOpen={true}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ProfileField label="Full Name">
             <input value={fullName} onChange={(e) => setFullName(e.target.value)} onBlur={() => handleSaveSection("personal", { full_name: fullName || null })} className="input text-sm" placeholder="John Smith" />
@@ -1760,17 +1775,11 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
             <input value={workPhone} onChange={(e) => setWorkPhone(e.target.value)} onBlur={() => handleSaveSection("personal", { work_phone: workPhone || null })} className="input text-sm" placeholder="020 7946 0959" />
           </ProfileField>
         </div>
-      </div>
+      
+      </FoldCard>
 
       {/* Card 2: Address History & Residency */}
-      <div className="panel p-5 fade-in">
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/10"><MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></span>
-            Address History & Residency
-          </h4>
-          {autoSavedFields.has("address") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>}
-        </div>
+      <FoldCard title={<>Address History & Residency</>} icon={<span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-500/10"><MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /></span>} saved={autoSavedFields.has("address") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>} summary={`${[addressStreet, addressCity].filter(Boolean).join(", ") || "No address yet"}`} defaultOpen={true}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <ProfileField label="Street Address">
             <input value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} onBlur={() => handleSaveSection("address", { address_street: addressStreet || null })} className="input text-sm" placeholder="123 High Street" />
@@ -1842,18 +1851,12 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
             </div>
           )}
         </div>
-      </div>
+      
+      </FoldCard>
 
       {/* Card 3: Household Composition */}
-      <div className="panel p-5 fade-in">
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-500/10"><Users className="h-4 w-4 text-purple-600 dark:text-purple-400" /></span>
-            Household Composition
-            <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-600 dark:bg-teal-500/10 dark:text-teal-400">Feeds SFS Logic</span>
-          </h4>
-          {autoSavedFields.has("household") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>}
-        </div>
+      <FoldCard title={<>Household Composition
+            <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-600 dark:bg-teal-500/10 dark:text-teal-400">Feeds SFS Logic</span></>} icon={<span className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-500/10"><Users className="h-4 w-4 text-purple-600 dark:text-purple-400" /></span>} saved={autoSavedFields.has("household") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>} summary={`${sfsThresholds.totalHousehold} in household`} defaultOpen={false}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <ProfileField label="Number of Adults in Household">
             <input type="number" min="1" value={householdAdults} onChange={(e) => setHouseholdAdults(e.target.value)} onBlur={() => handleSaveSection("household", { household_adults: parseInt(householdAdults) || 1 })} className="input text-sm" />
@@ -1879,17 +1882,11 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
             Total Household: <span className="font-bold text-slate-800 dark:text-slate-100">{sfsThresholds.totalHousehold}</span>
           </div>
         </div>
-      </div>
+      
+      </FoldCard>
 
       {/* Card 4: Property & Housing Details */}
-      <div className="panel p-5 fade-in">
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-500/10"><Home className="h-4 w-4 text-amber-600 dark:text-amber-400" /></span>
-            Property & Housing Details
-          </h4>
-          {autoSavedFields.has("property") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>}
-        </div>
+      <FoldCard title={<>Property & Housing Details</>} icon={<span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-500/10"><Home className="h-4 w-4 text-amber-600 dark:text-amber-400" /></span>} saved={autoSavedFields.has("property") && <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 fade-in"><Check className="h-3 w-3" /> Saved</span>} summary={`${[landlordLenderName, monthlyRentMortgage ? "£" + monthlyRentMortgage + "/mo" : ""].filter(Boolean).join(" · ") || "Not entered"}`} defaultOpen={false}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ProfileField label="Tenure Type">
             <select
@@ -1914,7 +1911,8 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
             <input value={landlordLenderName} onChange={(e) => setLandlordLenderName(e.target.value)} onBlur={() => handleSaveSection("property", { landlord_lender_name: landlordLenderName || null })} className="input text-sm" placeholder="Nationwide Building Society" />
           </ProfileField>
         </div>
-      </div>
+      
+      </FoldCard>
     </div>
   );
 }
@@ -2043,15 +2041,17 @@ function SfsIntakeTab({ caseId, caseData }: { caseId: string | null; caseData: D
             const items = categoryEntries(cat);
             const sectionTotal = items.reduce((s, e) => s + e.amount, 0);
             return (
-              <div key={cat} className="panel p-4">
-                <div className="mb-3 flex items-center justify-between">
+              <details key={cat} open={cat === "income" || cat === "essential_expense"} className="panel group/cat p-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between">
                   <div className="flex items-center gap-2">
+                    <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open/cat:rotate-180" />
                     <span className={`h-2.5 w-2.5 rounded-full bg-${meta.color}-500`} />
                     <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{meta.label}</h4>
                     <span className="text-xs text-slate-400">({items.length})</span>
                   </div>
                   <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatCurrency(sectionTotal)}</span>
-                </div>
+                </summary>
+                <div className="mt-3" />
                 {items.length > 0 ? (
                   <div className="space-y-1.5">
                     {items.map((entry) => (
@@ -2075,7 +2075,7 @@ function SfsIntakeTab({ caseId, caseData }: { caseId: string | null; caseData: D
                 ) : (
                   <p className="py-2 text-xs text-slate-400">No entries — add one or load the SFS template</p>
                 )}
-              </div>
+              </details>
             );
           })}
         </div>
@@ -2103,8 +2103,17 @@ function SfsIntakeTab({ caseId, caseData }: { caseId: string | null; caseData: D
       </div>
 
       {/* Benefits Entitlement & Income Maximization */}
-      <BenefitsCheckerSection caseId={caseId} caseData={caseData} />
-      <BankTransactionImportSection caseId={caseId} caseData={caseData} />
+      <details className="panel group/tools p-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+          <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open/tools:rotate-180" />
+          Benefits check &amp; bank statement import
+          <span className="text-xs font-normal text-slate-400">Optional tools to find extra income and pre-fill the budget</span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <BenefitsCheckerSection caseId={caseId} caseData={caseData} />
+          <BankTransactionImportSection caseId={caseId} caseData={caseData} />
+        </div>
+      </details>
     </div>
   );
 }
