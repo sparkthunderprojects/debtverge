@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, CreditCard, Landmark, Loader2, ShieldCheck, UserCog } from "lucide-react";
-import { fetchPortalLink, submitChangeRequest, type PortalLinkView } from "@/lib/portal-hooks";
+import { fetchPortalLink, fetchPaymentState, startPaymentSession, submitChangeRequest, type PortalLinkView, type LinkPaymentState } from "@/lib/portal-hooks";
 
 const gbp = (n = 0) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(n);
 
@@ -9,10 +9,34 @@ export function ClientPortalPage({ token }: { token: string }) {
   const [view, setView] = useState<PortalLinkView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showChange, setShowChange] = useState(false);
+  const [pay, setPay] = useState<LinkPaymentState | null>(null);
+  const [starting, setStarting] = useState<"bank_pay" | "direct_debit" | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const done = new URLSearchParams(window.location.search).get("done");
 
   useEffect(() => {
     fetchPortalLink(token).then(setView).catch(() => setError("We couldn't load this page. Please try again."));
+    fetchPaymentState(token).then(setPay).catch(() => undefined);
   }, [token]);
+
+  // After returning from the bank, the payment is confirmed in the background: check a few times.
+  useEffect(() => {
+    if (done !== "bank_pay") return;
+    let n = 0;
+    const t = setInterval(() => {
+      n += 1;
+      fetchPortalLink(token).then(setView).catch(() => undefined);
+      fetchPaymentState(token).then(setPay).catch(() => undefined);
+      if (n >= 12) clearInterval(t);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [done, token]);
+
+  const begin = async (mode: "bank_pay" | "direct_debit") => {
+    setStarting(mode); setPayError(null);
+    try { window.location.href = await startPaymentSession(token, mode); }
+    catch (e) { setPayError(e instanceof Error ? e.message : "Something went wrong"); setStarting(null); }
+  };
 
   const progress = view?.total_debt ? Math.min(100, Math.round(((view.paid_to_date ?? 0) / view.total_debt) * 100)) : 0;
 
@@ -43,14 +67,20 @@ export function ClientPortalPage({ token }: { token: string }) {
                   <p className="mt-3 text-4xl font-bold text-slate-900 dark:text-slate-100">{gbp(view.amount)}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-slate-400"><Clock className="h-3 w-3" /> Link valid until {new Date(view.expires_at!).toLocaleDateString("en-GB")}</p>
                   <div className="mt-5 space-y-2">
-                    <button disabled className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white opacity-50">
-                      <Landmark className="h-4 w-4" /> Pay by bank
+                    <button onClick={() => begin("bank_pay")} disabled={starting !== null} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white disabled:opacity-60">
+                      {starting === "bank_pay" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />} Pay {gbp(view.amount)} by bank
                     </button>
-                    <button disabled className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-600 opacity-50 dark:border-slate-600 dark:text-slate-300">
-                      <CreditCard className="h-4 w-4" /> Pay by card
-                    </button>
+                    {pay?.mandate === "active" ? (
+                      <p className="flex items-center justify-center gap-1 text-xs text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" /> Direct Debit is set up for your monthly payments</p>
+                    ) : (
+                      <button onClick={() => begin("direct_debit")} disabled={starting !== null} className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-600 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300">
+                        {starting === "direct_debit" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />} Set up Direct Debit instead
+                      </button>
+                    )}
                   </div>
-                  <p className="mt-3 text-center text-xs text-slate-400">Online payment is being switched on for your firm. Your adviser will be in touch if you need to pay sooner.</p>
+                  {payError && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800">{payError}</p>}
+                  {done === "bank_pay" && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-center text-xs text-emerald-800">Thanks. We're confirming your payment with the bank. This page updates by itself.</p>}
+                  {done === "direct_debit" && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-center text-xs text-emerald-800">Thanks. Your Direct Debit is being set up. You'll get confirmation from your bank.</p>}
                 </>
               ) : (
                 <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">

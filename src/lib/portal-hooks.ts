@@ -103,3 +103,32 @@ export async function decideChangeRequest(id: string, approve: boolean, note: st
   const { error } = await supabase.rpc("decide_change_request", { p_id: id, p_approve: approve, p_note: note || null });
   if (error) throw error;
 }
+
+/* ---------- Online payment (GoCardless via edge function) ---------- */
+export interface LinkPaymentState { found: boolean; mandate?: string | null; last_attempt?: string | null }
+
+export async function fetchPaymentState(token: string): Promise<LinkPaymentState> {
+  const { data, error } = await supabase.rpc("get_link_payment_state", { p_token: token });
+  if (error) throw error;
+  return data as LinkPaymentState;
+}
+
+/** Returns the hosted payment/mandate URL, or throws a message fit to show the client. */
+export async function startPaymentSession(token: string, mode: "bank_pay" | "direct_debit"): Promise<string> {
+  const base = import.meta.env.VITE_SUPABASE_URL as string;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+  let res: Response;
+  try {
+    res = await fetch(`${base}/functions/v1/client-payment-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ token, mode }),
+    });
+  } catch {
+    throw new Error("We couldn't reach the payment service. Please try again.");
+  }
+  const out = await res.json().catch(() => ({}));
+  if (res.ok && out.url) return out.url as string;
+  if (res.status === 404 || res.status === 503) throw new Error("Online payment isn't switched on for your firm yet. Please contact your adviser to pay.");
+  throw new Error(out.error ?? "We couldn't start the payment. Please try again.");
+}
