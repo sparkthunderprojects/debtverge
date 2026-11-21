@@ -1,0 +1,65 @@
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Login } from "@/components/Login";
+import { DebtVerge } from "@/components/DebtVerge";
+import { DebtVergeSignupWizard } from "@/components/DebtVergeSignupWizard";
+import { Spinner } from "@/components/ui";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { StormCallProvider } from "@/lib/stormcall-context";
+import { IncomeCalcProvider, useIncomeCalc } from "@/lib/income-calc-context";
+import { SalaryIncomeCalculator } from "@/components/income-calc/SalaryIncomeCalculator";
+import { useTheme } from "@/lib/theme";
+
+const SIGNUP_PATH = "/debtverge/signup";
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
+  const { user, loading } = useAuth();
+  const { theme } = useTheme();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <Spinner className="h-7 w-7 text-emerald-600" />
+      </div>
+    );
+  }
+
+  // Public route: self-service tenant sign-up wizard (available signed in or out)
+  if (window.location.pathname === SIGNUP_PATH) {
+    return (
+      <ErrorBoundary>
+        <DebtVergeSignupWizard onComplete={() => { window.location.href = "/"; }} />
+      </ErrorBoundary>
+    );
+  }
+
+  if (!user) return <Login />;
+
+  return (
+    <ErrorBoundary>
+      <StormCallProvider>
+        <IncomeCalcProvider>
+          <div className={`h-screen w-screen overflow-hidden ${theme === "dark" ? "bg-slate-900" : "bg-slate-50"}`}>
+            <DebtVerge />
+          </div>
+          <GlobalIncomeCalcModal />
+        </IncomeCalcProvider>
+      </StormCallProvider>
+    </ErrorBoundary>
+  );
+}
+
+function GlobalIncomeCalcModal() {
+  const { triggeredFrom, isOpen } = useIncomeCalc();
+  if (!triggeredFrom || !isOpen) return null;
+  return <SalaryIncomeCalculator portal={triggeredFrom} />;
+}
+
+export default App;
