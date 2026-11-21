@@ -1501,6 +1501,15 @@ function CaseOverview({ caseData, creditors, distributions, auditLog, onTabChang
 }
 
 
+const TENURE_TYPE_OPTIONS: { value: DebtTenureType; label: string }[] = [
+  { value: "owned", label: "Owned" },
+  { value: "private_rented", label: "Private Rented" },
+  { value: "social_rented", label: "Social Rented" },
+  { value: "council", label: "Council" },
+  { value: "leased", label: "Leased" },
+  { value: "living_with_family", label: "Living with Family/Parents" },
+];
+
 function ProfileField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
