@@ -544,7 +544,7 @@ export function DebtVergeWorkspace({
       {/* Main Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         {/* Compact Sticky Debtor Header */}
-        <div className="sticky top-0 z-20 flex shrink-0 items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur dark:border-slate-700 dark:bg-slate-800/95">
+        <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur dark:border-slate-700 dark:bg-slate-800/95">
           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${standaloneAppName === "IVAVerge" ? "from-violet-600 to-violet-800" : standaloneAppName === "DraftVerge" ? "from-blue-600 to-blue-800" : "from-slate-700 to-slate-900"} text-white shadow-md`}>
             {standaloneAppName === "IVAVerge" ? <Gavel className="h-5 w-5" /> : standaloneAppName === "DraftVerge" ? <PenSquare className="h-5 w-5" /> : <Scale className="h-5 w-5" />}
           </div>
@@ -677,7 +677,7 @@ export function DebtVergeWorkspace({
             </div>
           )}
           {/* Action buttons — all preserved */}
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {selectedCase && (
               <button onClick={() => setShowOfferPack(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Generate DMP offer letters for creditors">
                 <Mail className="h-3.5 w-3.5" /> Offer Packs
