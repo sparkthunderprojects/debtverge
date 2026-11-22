@@ -65,6 +65,7 @@ import { useAuth } from "@/lib/auth";
 import { DiaryTab } from "./debt/DiaryTab";
 import { DocumentsTab } from "./debt/DocumentsTab";
 import { MessagesTab } from "./debt/MessagesTab";
+import { DistributionPanel } from "./debt/DistributionPanel";
 import { CaseNextAction } from "@/components/debt/CaseNextAction";
 import { PaymentLinkButton, ChangeRequestsButton } from "@/components/debt/PortalAdviserTools";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
@@ -718,7 +719,10 @@ export function DebtVergeWorkspace({
           ) : activeTab === "compare" ? (
             <PlanComparisonTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "disbursement" ? (
-            <DisbursementTab caseId={activeCaseId} caseData={selectedCase} />
+            <div className="space-y-4">
+              {activeCaseId && <DistributionPanel caseId={activeCaseId} />}
+              <DisbursementTab caseId={activeCaseId} caseData={selectedCase} />
+            </div>
           ) : activeTab === "payment_gateway" ? (
             <PaymentGatewayModule caseId={activeCaseId} />
           ) : activeTab === "cashier_ops" ? (
