@@ -24,11 +24,16 @@ Routes: `/` (sign in → workspace), `/debtverge/signup` (public tenant sign-up 
 
 ```
 src/
-  App.tsx                 auth gate -> DebtVerge workspace
-  components/DebtVerge.tsx   main workspace (cases, SFS, creditors, IVA, ...)
-  components/DebtVergeNav.tsx  DebtVerge-only top bar
-  components/debt/ comms/ iva/ income-calc/   feature modules
-  lib/                    Supabase client, hooks, types, UK tax, insolvency docs
+  main.tsx                entry point
+  shell/                  sign-in, MFA, routing, and the list of apps (apps.ts)
+  core/                   code every app shares: Supabase client, auth, licences and
+                          roles, types, formatting, UI kit
+  apps/debtverge/         the DebtVerge app (loaded only when shown)
+    Root.tsx              what the shell mounts after sign-in
+    public.tsx            pages that need no staff sign-in (payment link, e-sign, sign-up)
+    components/           workspace, debt/ comms/ iva/ compliance/ phone/ ...
+    lib/                  DebtVerge hooks, UK tax, insolvency documents
+  Rule: an app may import from core, never from another app.
 supabase/
   migrations/             schema history copied from the source project
   functions/              payment-gateway, recurring-collection, batch-processing,

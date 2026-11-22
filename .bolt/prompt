@@ -4,4 +4,6 @@ By default, this template supports JSX syntax with Tailwind CSS classes, React h
 
 Use icons from lucide-react for logos.
 
-Import project modules with the `@/` path alias, which maps to `src/` (e.g. `@/components/Foo` == `src/components/Foo`), instead of deep relative paths like `../../components/Foo`.
+Import project modules with the `@/` path alias, which maps to `src/` (e.g. `@/core/ui` == `src/core/ui.tsx`), instead of deep relative paths.
+
+Source layout: `src/shell` (sign-in, MFA, routing, the list of apps), `src/core` (code every app shares: Supabase client, auth, licences and roles, types, UI kit), and `src/apps/<app>` (one folder per app; DebtVerge is `src/apps/debtverge`). Code for one app goes only in that app's folder. An app may import from `@/core` but never from another app. Put anything two apps need into `src/core`.
