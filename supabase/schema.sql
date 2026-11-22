@@ -9383,3 +9383,4 @@ RETURNS int LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
   SELECT count(*)::int FROM generate_series(d1 + 1, d2, interval '1 day') g
   WHERE extract(isodow FROM g) < 6 AND NOT EXISTS (SELECT 1 FROM dv_bank_holidays h WHERE h.day = g::date);
 $$;
+CREATE POLICY dv_rate_limits_no_access ON public.dv_rate_limits FOR ALL TO authenticated, anon USING (false) WITH CHECK (false);
