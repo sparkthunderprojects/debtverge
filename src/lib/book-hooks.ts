@@ -48,3 +48,31 @@ export async function fetchPaymentSuite(): Promise<PaymentSuite> {
     links: d.links.map((r) => ({ ...r, amount: n(r.amount) })),
   };
 }
+
+export interface OpsRun extends SuiteCaseRef { id: string; run_date: string; status: string; total_amount: number; total_items: number; created_by_me: boolean }
+export interface OpsBankTxn { id: string; date: string; amount: number; direction: string | null; reference: string | null; counterparty: string | null; status: string; notes: string | null }
+export interface PaymentSuiteOps {
+  payouts: { awaiting_count: number; awaiting_amount: number; failed_count: number; approved_count: number; approved_amount: number; settled_30d_amount: number; runs: OpsRun[] };
+  /** Null for anyone who is not a manager: reconciliation, client money and fees are manager-only. */
+  reconciliation: { by_status: { status: string; count: number; amount: number }[]; unmatched: OpsBankTxn[]; feeds: { name: string; type: string | null; last_import_at: string | null; last_import_count: number | null; active: boolean }[] } | null;
+  client_money: { last: { date: string; bank_balance: number; ledger_total: number; difference: number; note: string | null } | null; history: { date: string; bank_balance: number; ledger_total: number; difference: number }[]; open_holds: number } | null;
+  fees: { by_status: { status: string; count: number; amount: number }[] } | null;
+}
+
+export async function fetchPaymentSuiteOps(): Promise<PaymentSuiteOps> {
+  const { data, error } = await supabase.rpc("dv_payment_suite_ops");
+  if (error) throw new Error(error.message);
+  const d = data as PaymentSuiteOps;
+  const n = (v: unknown) => Number(v ?? 0);
+  const p = d.payouts;
+  return {
+    payouts: { ...p, awaiting_count: n(p.awaiting_count), awaiting_amount: n(p.awaiting_amount), failed_count: n(p.failed_count), approved_count: n(p.approved_count), approved_amount: n(p.approved_amount), settled_30d_amount: n(p.settled_30d_amount), runs: p.runs.map((r) => ({ ...r, total_amount: n(r.total_amount), total_items: n(r.total_items) })) },
+    reconciliation: d.reconciliation && { ...d.reconciliation, by_status: d.reconciliation.by_status.map((r) => ({ ...r, count: n(r.count), amount: n(r.amount) })), unmatched: d.reconciliation.unmatched.map((r) => ({ ...r, amount: n(r.amount) })) },
+    client_money: d.client_money && {
+      open_holds: n(d.client_money.open_holds),
+      last: d.client_money.last && { ...d.client_money.last, bank_balance: n(d.client_money.last.bank_balance), ledger_total: n(d.client_money.last.ledger_total), difference: n(d.client_money.last.difference) },
+      history: d.client_money.history.map((h) => ({ ...h, bank_balance: n(h.bank_balance), ledger_total: n(h.ledger_total), difference: n(h.difference) })),
+    },
+    fees: d.fees && { by_status: d.fees.by_status.map((r) => ({ ...r, count: n(r.count), amount: n(r.amount) })) },
+  };
+}
