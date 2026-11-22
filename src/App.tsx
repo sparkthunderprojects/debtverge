@@ -3,6 +3,7 @@ import { Login } from "@/components/Login";
 import { DebtVerge } from "@/components/DebtVerge";
 import { ClientPortalPage } from "@/components/ClientPortalPage";
 import { SignPage } from "@/components/SignPage";
+import { MfaGate } from "@/components/MfaGate";
 import { DebtVergeSignupWizard } from "@/components/DebtVergeSignupWizard";
 import { Spinner } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -59,10 +60,12 @@ function AppContent() {
     <ErrorBoundary>
       <StormCallProvider>
         <IncomeCalcProvider>
-          <div className={`h-screen w-screen overflow-hidden ${theme === "dark" ? "bg-slate-900" : "bg-slate-50"}`}>
-            <DebtVerge />
-          </div>
-          <GlobalIncomeCalcModal />
+          <MfaGate>
+            <div className={`h-screen w-screen overflow-hidden ${theme === "dark" ? "bg-slate-900" : "bg-slate-50"}`}>
+              <DebtVerge />
+            </div>
+            <GlobalIncomeCalcModal />
+          </MfaGate>
         </IncomeCalcProvider>
       </StormCallProvider>
     </ErrorBoundary>

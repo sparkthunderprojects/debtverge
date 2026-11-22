@@ -8,6 +8,7 @@ import type { DebtCase } from "@/lib/types";
 import { ClientMoneyPanel } from "@/components/debt/ClientMoneyPanel";
 import { ComplaintsPanel } from "@/components/debt/ComplaintsPanel";
 import { ReportsPanel } from "@/components/debt/ReportsPanel";
+import { SecurityPanel } from "@/components/debt/SecurityPanel";
 import { UnassignedInboxPanel } from "@/components/debt/UnassignedInboxPanel";
 import { BulkCreditorPanel } from "@/components/debt/BulkCreditorPanel";
 import { VoidedRecordsPanel } from "@/components/debt/VoidedRecordsPanel";
@@ -134,6 +135,7 @@ function AdvisorHome({ data, userId, onOpenCase }: { data: HomeData; userId: str
       <Section title="All my cases" count={open.length} empty="No cases assigned to you yet.">
         {open.map((c) => <CaseRow key={c.id} c={c} tone="slate" note={`${gbp(c.total_debt)} debt`} onOpen={() => onOpenCase(c.id)} />)}
       </Section>
+      <SecurityPanel />
     </>
   );
 }
@@ -180,6 +182,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
       </div>
       <ClientMoneyPanel onOpenCase={onOpenCase} />
       <UnassignedInboxPanel />
+      <SecurityPanel />
       <ComplaintsPanel onOpenCase={onOpenCase} />
       <ReportsPanel />
       <BulkCreditorPanel />
@@ -220,6 +223,7 @@ function OpsHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: string
       </div>
       <ClientMoneyPanel onOpenCase={onOpenCase} />
       <UnassignedInboxPanel />
+      <SecurityPanel />
       <ComplaintsPanel onOpenCase={onOpenCase} />
       <ReportsPanel />
       <BulkCreditorPanel />
