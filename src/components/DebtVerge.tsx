@@ -66,6 +66,7 @@ import { DiaryTab } from "./debt/DiaryTab";
 import { DocumentsTab } from "./debt/DocumentsTab";
 import { MessagesTab } from "./debt/MessagesTab";
 import { DistributionPanel } from "./debt/DistributionPanel";
+import { useMyProducts, allowedViewModes } from "@/lib/product-hooks";
 import { CaseNextAction } from "@/components/debt/CaseNextAction";
 import { PaymentLinkButton, ChangeRequestsButton } from "@/components/debt/PortalAdviserTools";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
@@ -264,7 +265,14 @@ export function DebtVergeWorkspace({
   const [ivaStageFilter, setIvaStageFilter] = useState<string>("all_iva");
   const [draftStageFilter, setDraftStageFilter] = useState<string>("all_draft");
 
+  const { products, loading: productsLoading } = useMyProducts();
+  const licensedModes = useMemo(() => allowedViewModes(products), [products]);
   const canToggleView = !forceViewMode;
+  // keep the view inside what the firm is licensed for (e.g. a DMP-only firm never sees the Insolvency view)
+  useEffect(() => {
+    if (forceViewMode || productsLoading || licensedModes.length === 0) return;
+    if (!licensedModes.includes(viewMode)) setViewMode(licensedModes[0]);
+  }, [forceViewMode, productsLoading, licensedModes, viewMode]);
 
   // Determine IVA status from case data for display in sidebar
   const deriveIVAStatus = (c: DebtCase): IVACaseStatus | null => {
@@ -413,7 +421,7 @@ export function DebtVergeWorkspace({
           {/* Workspace View Toggle — DMP / IVA / All */}
           <div className="mb-2 flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
             {(canToggleView
-              ? (["dmp", "iva", "all"] as WorkspaceViewMode[])
+              ? (licensedModes.length > 1 ? licensedModes : [])
               : ([AGENT_ROLE_META[agentRole].defaultView] as WorkspaceViewMode[])
             ).map((vm) => (
               <button

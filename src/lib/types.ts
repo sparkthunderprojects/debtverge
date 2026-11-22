@@ -1632,9 +1632,9 @@ export const AGENT_ROLE_META: Record<DebtVergeAgentRole, { label: string; descri
 };
 
 export const WORKSPACE_VIEW_META: Record<WorkspaceViewMode, { label: string; color: string }> = {
-  dmp:   { label: "DMP View",    color: "bg-emerald-600" },
+  dmp:   { label: "DMP Advisor",    color: "bg-emerald-600" },
   draft: { label: "Draft View",  color: "bg-blue-600" },
-  iva:   { label: "IVA View",    color: "bg-violet-600" },
+  iva:   { label: "Insolvency Advisor",    color: "bg-violet-600" },
   all:   { label: "All Cases",   color: "bg-slate-600" },
 };
 
