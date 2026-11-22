@@ -74,17 +74,19 @@ export type PipelineTab =
   | "diary"
   | "notes"
   | "documents"
-  | "messages";
+  | "messages"
+  | "calls";
 
 export const PIPELINE_TAB_VISIBILITY: Record<DebtSolutionPipeline, PipelineTab[]> = {
-  DMP: ["dashboard", "diary", "notes", "documents", "messages", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "breathing_space", "communications"],
-  IVA: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "nominee_proposal", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications"],
-  DRO: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "interim_order", "moratorium", "breathing_space", "communications"],
-  Settlement: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "breathing_space", "communications"],
+  DMP: ["dashboard", "diary", "notes", "documents", "messages", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "calls", "vulnerability", "compliance", "breathing_space", "communications"],
+  IVA: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "calls", "vulnerability", "compliance", "nominee_proposal", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications"],
+  DRO: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "payment_schedule", "payment_gateway", "cashier_ops", "calls", "vulnerability", "compliance", "interim_order", "moratorium", "breathing_space", "communications"],
+  Settlement: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "calls", "vulnerability", "compliance", "breathing_space", "communications"],
 };
 
 export const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   dashboard: "Dashboard",
+  calls: "Calls",
   profile: "Customer Profile",
   intake: "SFS Budget",
   ledger: "Creditor List",

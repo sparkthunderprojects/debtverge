@@ -19,6 +19,7 @@ import {
   FileUp, CalendarCheck, ShieldX, FlaskConical,
   UserCog, FileCheck, Vote, FileSignature, Network, Smartphone, Building,
   Compass, Package, PenSquare,
+  PhoneCall,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
@@ -111,7 +112,8 @@ import {
 import type {
   SolutionSuitabilityScore, SuitabilityVerdict,
 } from "@/lib/types";
-import { VoipCallButton } from "@/components/stormcall/VoipCallButton";
+import { CallsPanel } from "@/components/CallsPanel";
+import { ComplianceScreen } from "@/components/ComplianceScreen";
 import { IncomeCalcButton } from "@/components/income-calc/IncomeCalcButton";
 import { KnowledgeAssistantDrawer } from "@/components/knowledge/KnowledgeAssistantDrawer";
 import { DebtVergeNav } from "@/components/DebtVergeNav";
@@ -145,11 +147,12 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   inflight: <Wallet className="h-4 w-4" />,
   breathing_space: <Wind className="h-4 w-4" />,
   communications: <Mail className="h-4 w-4" />,
+  calls: <PhoneCall className="h-4 w-4" />,
   payment_gateway: <Banknote className="h-4 w-4" />,
   cashier_ops: <ShieldCheck className="h-4 w-4" />,
 };
 
-const ALL_TABS: Tab[] = ["dashboard", "diary", "notes", "documents", "messages", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "nominee_proposal", "interim_order", "moratorium", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications"];
+const ALL_TABS: Tab[] = ["dashboard", "diary", "notes", "documents", "messages", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "nominee_proposal", "interim_order", "moratorium", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications", "calls"];
 
 const STATUS_META: Record<DebtCaseStatus, { label: string; color: string; icon: React.ReactNode }> = {
   intake: { label: "Intake", color: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300", icon: <Clock className="h-3 w-3" /> },
@@ -258,7 +261,7 @@ export function DebtVergeWorkspace({
   const [showHandOver, setShowHandOver] = useState(false);
   const [showSuitability, setShowSuitability] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
-  const [extraScreen, setExtraScreen] = useState<"clients" | "payments" | null>(null);
+  const [extraScreen, setExtraScreen] = useState<"clients" | "payments" | "compliance" | null>(null);
   const [listOpen, setListOpen] = useState(() => { try { return localStorage.getItem("dv_case_list_open") !== "0"; } catch { return true; } });
   const toggleList = () => setListOpen((o) => { const n = !o; try { localStorage.setItem("dv_case_list_open", n ? "1" : "0"); } catch { /* ignore */ } return n; });
   const { dvRole, canViewAs, viewAs, setViewAs, realDvRole } = useAuth();
@@ -305,7 +308,9 @@ export function DebtVergeWorkspace({
 
   // Map context tabs to the local Tab type — context provides the filtered set
   const DRAFT_VISIBLE_TABS: Tab[] = ["dashboard", "profile", "intake", "ledger", "nominee_proposal", "creditor_voting", "document_checklist", "proof_of_debt", "proposal_generator", "pathfinder", "compliance", "communications"];
-  const baseTabs: Tab[] = standaloneAppName === "DraftVerge" ? DRAFT_VISIBLE_TABS : visibleTabs;
+  const hasPhone = products.some((p) => p.product_key === "voip");
+  const hasCompliance = products.some((p) => p.product_key === "compliance") && dvRole !== "advisor";
+  const baseTabs: Tab[] = (standaloneAppName === "DraftVerge" ? DRAFT_VISIBLE_TABS : visibleTabs).filter((t) => t !== "calls" || hasPhone);
   // Email & SMS lives inside the Communications tab, so it no longer gets a tab of its own.
   const tabsToShow: Tab[] = baseTabs.includes("messages")
     ? Array.from(new Set(baseTabs.map((t) => (t === "messages" ? ("communications" as Tab) : t))))
@@ -404,13 +409,7 @@ export function DebtVergeWorkspace({
         onOpenCase={(id) => { setShowTeam(false); setExtraScreen(null); setShowNewCase(false); setActiveCaseId(id); }}
         screen={selectedCase ? null : extraScreen}
         onOpenScreen={(sc) => { setActiveCaseId(null); setShowTeam(false); setShowNewCase(false); setExtraScreen(sc); }}
-        voipContext={{
-          applicationSource: standaloneAppName,
-          customerName: selectedCase?.debtor_name ?? null,
-          customerReference: selectedCase?.case_number ?? null,
-          caseNumber: selectedCase?.case_number ?? null,
-          caseId: selectedCase?.id ?? null,
-        }}
+        showCompliance={hasCompliance}
       />
       <div className="flex min-h-0 flex-1 gap-4 p-4">
       {/* Case List Sidebar (collapsible) */}
@@ -624,7 +623,6 @@ export function DebtVergeWorkspace({
                 <button onClick={() => setShowPaymentLink(true)} className="btn btn-primary bg-emerald-600 px-3 py-1.5 text-xs hover:bg-emerald-700" title="Create a no-login payment link for the client">
                   <Link2 className="h-3.5 w-3.5" /> Payment link
                 </button>
-                <VoipCallButton applicationSource={standaloneAppName || "DebtVerge"} caseData={selectedCase} variant="icon" className="px-2.5 py-1.5" />
                 <IncomeCalcButton portal={standaloneAppName === "IVAVerge" ? "IVAVerge" : standaloneAppName === "DraftVerge" ? "DraftVerge" : "DebtVerge"} variant="icon" className="px-2.5 py-1.5" />
                 <button onClick={() => setShowAIAssistant(true)} className="btn btn-secondary px-2.5 py-1.5 text-xs" title="Ask AI"><Sparkles className="h-3.5 w-3.5" /></button>
                 <div className="relative">
@@ -690,7 +688,7 @@ export function DebtVergeWorkspace({
 
         {/* Tabs: everyday tabs in the bar, the rest under "More" */}
         {(() => {
-          const PRIMARY: Tab[] = ["dashboard", "diary", "notes", "documents", "messages", "profile", "intake", "ledger", "payment_schedule", "communications", "vulnerability"];
+          const PRIMARY: Tab[] = ["dashboard", "diary", "notes", "documents", "messages", "profile", "intake", "ledger", "payment_schedule", "communications", "calls", "vulnerability"];
           const primary = tabsToShow.filter((t) => PRIMARY.includes(t));
           const more = tabsToShow.filter((t) => !PRIMARY.includes(t));
           const accent = standaloneAppName === "IVAVerge" ? "bg-violet-600 shadow-violet-600/20" : standaloneAppName === "DraftVerge" ? "bg-blue-600 shadow-blue-600/20" : "bg-emerald-600 shadow-emerald-600/20";
@@ -739,7 +737,7 @@ export function DebtVergeWorkspace({
           <>
           {error && <div className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">{error}</div>}
           {!selectedCase && !showNewCase ? (
-            extraScreen === "clients" ? <ClientBookScreen onOpenCase={(id) => { setExtraScreen(null); setActiveCaseId(id); }} /> : extraScreen === "payments" ? <PaymentSuiteScreen onOpenCase={(id, tab) => { setExtraScreen(null); setActiveCaseId(id); if (tab) setActiveTab(tab as Tab); }} /> : showTeam ? <TeamScreen onOpenCase={(id) => { setShowTeam(false); setExtraScreen(null); setActiveCaseId(id); }} /> : <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
+            extraScreen === "compliance" ? <ComplianceScreen /> : extraScreen === "clients" ? <ClientBookScreen onOpenCase={(id) => { setExtraScreen(null); setActiveCaseId(id); }} /> : extraScreen === "payments" ? <PaymentSuiteScreen onOpenCase={(id, tab) => { setExtraScreen(null); setActiveCaseId(id); if (tab) setActiveTab(tab as Tab); }} /> : showTeam ? <TeamScreen onOpenCase={(id) => { setShowTeam(false); setExtraScreen(null); setActiveCaseId(id); }} /> : <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
           ) : activeTab === "dashboard" ? (
             <DashboardTab caseId={activeCaseId} caseData={selectedCase} onTabChange={setActiveTab} appName={standaloneAppName} />
           ) : activeTab === "profile" ? (
@@ -752,6 +750,8 @@ export function DebtVergeWorkspace({
             <DiaryTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "documents" ? (
             <DocumentsTab caseId={activeCaseId} caseData={selectedCase} />
+          ) : activeTab === "calls" ? (
+            <CallsPanel caseId={activeCaseId!} />
           ) : activeTab === "ledger" ? (
             <CreditorLedgerTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "forecast" ? (

@@ -7,7 +7,6 @@ import { MfaGate } from "@/components/MfaGate";
 import { DebtVergeSignupWizard } from "@/components/DebtVergeSignupWizard";
 import { Spinner } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { StormCallProvider } from "@/lib/stormcall-context";
 import { IncomeCalcProvider, useIncomeCalc } from "@/lib/income-calc-context";
 import { SalaryIncomeCalculator } from "@/components/income-calc/SalaryIncomeCalculator";
 import { useTheme } from "@/lib/theme";
@@ -58,7 +57,6 @@ function AppContent() {
 
   return (
     <ErrorBoundary>
-      <StormCallProvider>
         <IncomeCalcProvider>
           <MfaGate>
             <div className={`h-screen w-screen overflow-hidden ${theme === "dark" ? "bg-slate-900" : "bg-slate-50"}`}>
@@ -67,7 +65,6 @@ function AppContent() {
             <GlobalIncomeCalcModal />
           </MfaGate>
         </IncomeCalcProvider>
-      </StormCallProvider>
     </ErrorBoundary>
   );
 }
