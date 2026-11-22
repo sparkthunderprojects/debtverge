@@ -70,10 +70,11 @@ export type PipelineTab =
   | "pathfinder" | "proposal_generator" | "inflight"
   | "breathing_space" | "communications"
   | "payment_gateway"
-  | "cashier_ops";
+  | "cashier_ops"
+  | "diary";
 
 export const PIPELINE_TAB_VISIBILITY: Record<DebtSolutionPipeline, PipelineTab[]> = {
-  DMP: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "breathing_space", "communications"],
+  DMP: ["dashboard", "diary", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "breathing_space", "communications"],
   IVA: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "nominee_proposal", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications"],
   DRO: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "interim_order", "moratorium", "breathing_space", "communications"],
   Settlement: ["dashboard", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "breathing_space", "communications"],
@@ -104,6 +105,7 @@ export const PIPELINE_TAB_LABELS: Record<PipelineTab, string> = {
   communications: "Communications",
   payment_gateway: "Payment & Disbursement Gateway",
   cashier_ops: "Cashier Operations",
+  diary: "Diary & Tasks",
 };
 
 // ============================================================

@@ -108,19 +108,29 @@ function AdvisorHome({ data, userId, onOpenCase }: { data: HomeData; userId: str
   const overdue = open.filter((c) => overdueDays(c) > 0).sort((a, b) => overdueDays(b) - overdueDays(a));
   const soon = open.filter(dueSoon);
   const intake = open.filter((c) => c.status === "intake" || c.status === "sfs_pending");
+  const openIds = new Set(open.map((c) => c.id));
+  const myTasks = data.tasks.filter((t) => openIds.has(t.case_id));
+  const tasksDue = myTasks.filter((t) => t.due_date && (daysUntil(t.due_date) ?? 1) <= 0).sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
+  const caseById = new Map(open.map((c) => [c.id, c]));
+  const withTasks = new Set(myTasks.map((t) => t.case_id));
+  const unscheduled = open.filter((c) => !withTasks.has(c.id));
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile icon={<Users className="h-4 w-4" />} label="My open cases" value={open.length} />
         <Tile icon={<AlertTriangle className="h-4 w-4" />} label="Overdue payments" value={overdue.length} tone={overdue.length ? "rose" : "slate"} />
-        <Tile icon={<CalendarClock className="h-4 w-4" />} label="Due in 3 days" value={soon.length} tone={soon.length ? "amber" : "slate"} />
+        <Tile icon={<CalendarClock className="h-4 w-4" />} label="Tasks due" value={tasksDue.length} tone={tasksDue.length ? "amber" : "slate"} sub="Overdue or due today" />
         <Tile icon={<Inbox className="h-4 w-4" />} label="New referrals" value={data.pendingReferrals} tone={data.pendingReferrals ? "emerald" : "slate"} sub="Open the inbox icon in the case list" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Needs action today" count={overdue.length + soon.length} empty="Nothing urgent. Payments are on track.">
+        <Section title="Needs action today" count={overdue.length + soon.length + tasksDue.length} empty="Nothing urgent. Payments and tasks are on track.">
+          {tasksDue.map((t) => { const c = caseById.get(t.case_id); const d = daysUntil(t.due_date) ?? 0; return c ? <CaseRow key={t.id} c={c} tone={d < 0 ? "rose" : "amber"} note={`${t.title} · ${d < 0 ? `${-d}d overdue` : "due today"}`} onOpen={() => onOpenCase(c.id)} /> : null; })}
           {overdue.map((c) => <CaseRow key={c.id} c={c} tone="rose" note={`Payment ${overdueDays(c)}d overdue. Send a link or call.`} onOpen={() => onOpenCase(c.id)} />)}
           {soon.map((c) => <CaseRow key={c.id} c={c} tone="amber" note={`Payment due in ${daysUntil(c.next_due_date)}d`} onOpen={() => onOpenCase(c.id)} />)}
+        </Section>
+        <Section title="Nothing scheduled" count={unscheduled.length} empty="Every open case has a next step.">
+          {unscheduled.map((c) => <CaseRow key={c.id} c={c} tone="slate" note="No open task. Add a next step in the Diary." onOpen={() => onOpenCase(c.id)} />)}
         </Section>
         <Section title="Getting started" count={intake.length} empty="No cases waiting on intake or budget.">
           {intake.map((c) => <CaseRow key={c.id} c={c} tone="slate" note={c.status === "intake" ? "Intake: complete the profile" : "Waiting on budget (SFS) sign-off"} onOpen={() => onOpenCase(c.id)} />)}
@@ -142,6 +152,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
     groups.set(k, [...(groups.get(k) ?? []), c]);
   }
   const overdue = open.filter((c) => overdueDays(c) > 0);
+  const lateTasks = (list: DebtCase[]) => { const ids = new Set(list.map((c) => c.id)); return data.tasks.filter((t) => ids.has(t.case_id) && t.due_date && (daysUntil(t.due_date) ?? 0) < 0).length; };
 
   return (
     <>
@@ -156,7 +167,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
         <table className="w-full text-sm">
           <thead>
             <tr className="border-y border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400 dark:border-slate-700">
-              <th className="px-4 py-2">Advisor</th><th className="px-2 py-2 text-right">Cases</th><th className="px-2 py-2 text-right">Overdue</th><th className="px-2 py-2 text-right">Debt</th>
+              <th className="px-4 py-2">Advisor</th><th className="px-2 py-2 text-right">Cases</th><th className="px-2 py-2 text-right">Overdue</th><th className="px-2 py-2 text-right">Tasks late</th><th className="px-2 py-2 text-right">Debt</th>
             </tr>
           </thead>
           <tbody>
@@ -165,6 +176,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
                 <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-slate-100">{k === "unassigned" ? "Unassigned" : data.names[k] ?? "Advisor"}</td>
                 <td className="px-2 py-2.5 text-right">{list.length}</td>
                 <td className={`px-2 py-2.5 text-right font-semibold ${list.some((c) => overdueDays(c) > 0) ? "text-rose-600" : "text-slate-400"}`}>{list.filter((c) => overdueDays(c) > 0).length}</td>
+                <td className={`px-2 py-2.5 text-right font-semibold ${lateTasks(list) > 0 ? "text-amber-600" : "text-slate-400"}`}>{lateTasks(list)}</td>
                 <td className="px-2 py-2.5 text-right">{gbp(list.reduce((s, c) => s + Number(c.total_debt ?? 0), 0))}</td>
               </tr>
             ))}
