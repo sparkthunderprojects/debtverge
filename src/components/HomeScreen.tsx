@@ -6,6 +6,7 @@ import { useAuth, type DvRole } from "@/lib/auth";
 import { formatCurrency } from "@/lib/format";
 import { daysUntil, useHomeData, type HomeData } from "@/lib/home-hooks";
 import type { DebtCase } from "@/lib/types";
+import { ClientMoneyPanel } from "@/components/debt/ClientMoneyPanel";
 
 type View = "advisor" | "team_manager" | "operations_manager";
 
@@ -59,7 +60,7 @@ export function HomeScreen({ onOpenCase, onNewCase }: { onOpenCase: (id: string)
       </div>
       {view === "advisor" && <AdvisorHome data={data} userId={user?.id ?? null} onOpenCase={onOpenCase} />}
       {view === "team_manager" && <TeamHome data={data} onOpenCase={onOpenCase} />}
-      {view === "operations_manager" && <OpsHome data={data} />}
+      {view === "operations_manager" && <OpsHome data={data} onOpenCase={onOpenCase} />}
     </div>
   );
 }
@@ -183,6 +184,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
           </tbody>
         </table>
       </div>
+      <ClientMoneyPanel onOpenCase={onOpenCase} />
       <Section title="Overdue across the team" count={overdue.length} empty="No overdue payments.">
         {overdue.map((c) => <CaseRow key={c.id} c={c} tone="rose" note={`${data.names[c.assigned_to ?? ""] ?? "Unassigned"} · ${overdueDays(c)}d overdue`} onOpen={() => onOpenCase(c.id)} />)}
       </Section>
@@ -191,7 +193,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
 }
 
 /* ---------------- Operations manager ---------------- */
-function OpsHome({ data }: { data: HomeData }) {
+function OpsHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: string) => void }) {
   const active = data.cases.filter(isActive);
   const open = data.cases.filter((c) => c.status !== "completed" && c.status !== "closed");
   const expected = active.reduce((s, c) => s + Number(c.installment_amount ?? 0), 0);
@@ -216,6 +218,7 @@ function OpsHome({ data }: { data: HomeData }) {
         <Tile icon={<CalendarClock className="h-4 w-4" />} label="Tasks overdue" value={lateTasks} tone={lateTasks ? "amber" : "slate"} sub="Across the firm" />
         <Tile icon={<Banknote className="h-4 w-4" />} label="Creditor payouts" value={data.distributionsScheduled} sub={data.distributionsFailed ? `${data.distributionsFailed} failed` : "scheduled, none failed"} tone={data.distributionsFailed ? "rose" : "slate"} />
       </div>
+      <ClientMoneyPanel onOpenCase={onOpenCase} />
       <div className="panel p-4">
         <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Cases by stage</h3>
         <div className="space-y-2">
