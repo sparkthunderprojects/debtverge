@@ -64,6 +64,7 @@ import { TeamScreen, AssigneeControl } from "@/components/TeamScreen";
 import { useAuth } from "@/lib/auth";
 import { DiaryTab } from "./debt/DiaryTab";
 import { DocumentsTab } from "./debt/DocumentsTab";
+import { MessagesTab } from "./debt/MessagesTab";
 import { CaseNextAction } from "@/components/debt/CaseNextAction";
 import { PaymentLinkButton, ChangeRequestsButton } from "@/components/debt/PortalAdviserTools";
 import { formatCurrency, formatDateShort, relativeTime } from "@/lib/format";
@@ -117,6 +118,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-4 w-4" />,
   diary: <ListChecks className="h-4 w-4" />,
   documents: <FileText className="h-4 w-4" />,
+  messages: <MessageSquare className="h-4 w-4" />,
   profile: <User className="h-4 w-4" />,
   intake: <FileCalc className="h-4 w-4" />,
   ledger: <Landmark className="h-4 w-4" />,
@@ -142,7 +144,7 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
   cashier_ops: <ShieldCheck className="h-4 w-4" />,
 };
 
-const ALL_TABS: Tab[] = ["dashboard", "diary", "documents", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "nominee_proposal", "interim_order", "moratorium", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications"];
+const ALL_TABS: Tab[] = ["dashboard", "diary", "documents", "messages", "profile", "intake", "ledger", "forecast", "compare", "disbursement", "payment_schedule", "payment_gateway", "cashier_ops", "vulnerability", "compliance", "nominee_proposal", "interim_order", "moratorium", "ip_nominee", "document_checklist", "creditor_voting", "proof_of_debt", "pathfinder", "proposal_generator", "inflight", "breathing_space", "communications"];
 
 const STATUS_META: Record<DebtCaseStatus, { label: string; color: string; icon: React.ReactNode }> = {
   intake: { label: "Intake", color: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300", icon: <Clock className="h-3 w-3" /> },
@@ -645,7 +647,7 @@ export function DebtVergeWorkspace({
 
         {/* Tabs: everyday tabs in the bar, the rest under "More" */}
         {(() => {
-          const PRIMARY: Tab[] = ["dashboard", "diary", "documents", "profile", "intake", "ledger", "payment_schedule", "communications", "vulnerability"];
+          const PRIMARY: Tab[] = ["dashboard", "diary", "documents", "messages", "profile", "intake", "ledger", "payment_schedule", "communications", "vulnerability"];
           const primary = tabsToShow.filter((t) => PRIMARY.includes(t));
           const more = tabsToShow.filter((t) => !PRIMARY.includes(t));
           const accent = standaloneAppName === "IVAVerge" ? "bg-violet-600 shadow-violet-600/20" : standaloneAppName === "DraftVerge" ? "bg-blue-600 shadow-blue-600/20" : "bg-emerald-600 shadow-emerald-600/20";
@@ -705,6 +707,8 @@ export function DebtVergeWorkspace({
             <DiaryTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "documents" ? (
             <DocumentsTab caseId={activeCaseId} caseData={selectedCase} />
+          ) : activeTab === "messages" ? (
+            <MessagesTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "ledger" ? (
             <CreditorLedgerTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "forecast" ? (

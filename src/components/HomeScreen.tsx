@@ -197,6 +197,7 @@ function OpsHome({ data }: { data: HomeData }) {
   const expected = active.reduce((s, c) => s + Number(c.installment_amount ?? 0), 0);
   const rate = expected > 0 ? Math.round((data.collected30d / expected) * 100) : 0;
   const overdue = open.filter((c) => overdueDays(c) > 0);
+  const lateTasks = data.tasks.filter((t) => t.due_date && (daysUntil(t.due_date) ?? 0) < 0).length;
   const byStatus = new Map<string, number>();
   for (const c of open) byStatus.set(c.status, (byStatus.get(c.status) ?? 0) + 1);
 
@@ -212,6 +213,7 @@ function OpsHome({ data }: { data: HomeData }) {
         <Tile icon={<AlertTriangle className="h-4 w-4" />} label="Overdue payments" value={overdue.length} tone={overdue.length ? "rose" : "slate"} />
         <Tile icon={<AlertTriangle className="h-4 w-4" />} label="Shortfalls, 30 days" value={data.shortfalls30d} tone={data.shortfalls30d ? "amber" : "slate"} />
         <Tile icon={<ShieldAlert className="h-4 w-4" />} label="High vulnerability" value={data.highVulnerability} tone={data.highVulnerability ? "rose" : "slate"} />
+        <Tile icon={<CalendarClock className="h-4 w-4" />} label="Tasks overdue" value={lateTasks} tone={lateTasks ? "amber" : "slate"} sub="Across the firm" />
         <Tile icon={<Banknote className="h-4 w-4" />} label="Creditor payouts" value={data.distributionsScheduled} sub={data.distributionsFailed ? `${data.distributionsFailed} failed` : "scheduled, none failed"} tone={data.distributionsFailed ? "rose" : "slate"} />
       </div>
       <div className="panel p-4">
