@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Download, Loader2, PhoneIncoming, PhoneOutgoing, Play, ShieldAlert, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
-  CALL_STATUS_LABEL, NOTE_TAGS, OUTCOME_LABEL, RISK_TYPES, analyseCall, decideDraft, fetchCallDetail, fetchTranscript, fmtDuration, fmtWhen, raiseRisk, recordingLink, resolveRisk,
+  CALL_STATUS_LABEL, CHECKLIST, NOTE_TAGS, OUTCOME_LABEL, REVIEW_OUTCOME_LABEL, RISK_TYPES, analyseCall, decideDraft, fetchCallDetail, fetchTranscript, fmtDuration, fmtWhen, raiseRisk, recordingLink, resolveRisk,
   type AiDraft, type CallDetail, type ReviewFull,
 } from "@/lib/call-hooks";
 import { ReviewPanel } from "./ReviewPanel";
@@ -30,7 +30,8 @@ function DraftCard({ d, canDecide, onDone }: { d: AiDraft; canDecide: boolean; o
           {((analysis.vulnerability_indicators as { quote: string; note: string }[]) ?? []).length > 0 && <div><b>Possible vulnerability</b><ul className="list-disc pl-5 text-xs">{(analysis.vulnerability_indicators as { quote: string; note: string }[]).map((v, i) => <li key={i}>“{v.quote}” — {v.note}</li>)}</ul></div>}
           {Boolean(analysis.possible_complaint) && <p className="text-rose-700"><b>Possible complaint:</b> {String(analysis.possible_complaint_note ?? "")}</p>}
           {((analysis.follow_ups as string[]) ?? []).length > 0 && <div><b>Follow-ups</b><ul className="list-disc pl-5 text-xs">{(analysis.follow_ups as string[]).map((f, i) => <li key={i}>{f}</li>)}</ul></div>}
-          <p className="text-[11px] text-slate-500">Suggested checklist answers appear beside each question when a reviewer completes the review. They are hints only.</p>
+          {Array.isArray(analysis.checklist_suggestions) && <div><b>AI grading (draft)</b>{typeof analysis.suggested_outcome === "string" && <span> · suggests {REVIEW_OUTCOME_LABEL[analysis.suggested_outcome] ?? analysis.suggested_outcome}</span>}<ul className="mt-1 space-y-0.5 text-xs">{(analysis.checklist_suggestions as { item: string; suggested: string; evidence: string }[]).map((x, i) => <li key={i}><b className={x.suggested === "no" ? "text-rose-600" : x.suggested === "yes" ? "text-emerald-600" : "text-slate-500"}>{x.suggested.toUpperCase()}</b> {CHECKLIST.find((c) => c.key === x.item)?.label ?? x.item}{x.evidence ? ` — ${x.evidence}` : ""}</li>)}</ul></div>}
+          <p className="text-[11px] text-slate-500">A reviewer confirms or changes this grading when they complete the review. The score comes from the reviewer’s answers.</p>
         </div>
       ) : editing ? <textarea className="input mt-2 min-h-[120px]" value={text} onChange={(e) => setText(e.target.value)} />
         : <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{d.status === "amended" || d.status === "approved" ? d.final_body ?? d.body : d.body}</p>}

@@ -8,14 +8,20 @@ import {
 const inDays = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 const SEV: Record<string, string> = { minor: "Minor", major: "Major", critical: "Critical" };
 
-function suggestions(drafts: AiDraft[]): Record<string, { suggested: string; evidence: string }> {
-  const a = drafts.find((d) => d.kind === "analysis" && d.payload && d.status !== "rejected"); if (!a?.payload) return {};
+interface AiGrade { items: Record<string, { suggested: string; evidence: string }>; outcome: string | null; reason: string | null }
+function aiGrade(drafts: AiDraft[]): AiGrade | null {
+  const a = drafts.find((d) => d.kind === "analysis" && d.payload && d.status !== "rejected"); if (!a?.payload) return null;
   try {
-    const out: Record<string, { suggested: string; evidence: string }> = {};
-    for (const s of (JSON.parse(a.payload).checklist_suggestions ?? []) as { item: string; suggested: string; evidence: string }[]) { const k = AI_CHECK_MAP[s.item]; if (k) out[k] = { suggested: s.suggested, evidence: s.evidence }; }
-    return out;
-  } catch { return {}; }
+    const j = JSON.parse(a.payload); const items: AiGrade["items"] = {};
+    for (const x of (j.checklist_suggestions ?? []) as { item: string; suggested: string; evidence: string }[]) { const k = AI_CHECK_MAP[x.item] ?? x.item; if (CHECKLIST.some((c) => c.key === k)) items[k] = { suggested: x.suggested, evidence: x.evidence }; }
+    return { items, outcome: j.suggested_outcome ?? null, reason: j.outcome_reason ?? null };
+  } catch { return null; }
 }
+const agreement = (g: AiGrade | null, answers: Record<string, string> | null) => {
+  if (!g || !answers) return null; let same = 0, total = 0;
+  for (const [k, v] of Object.entries(answers)) { const ai = g.items[k]?.suggested; if (!ai || ai === "unclear") continue; total++; if (ai === v) same++; }
+  return total ? { same, total } : null;
+};
 
 function Form({ review, drafts, onDone }: { review: ReviewFull; drafts: AiDraft[]; onDone: () => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>(review.checklist ?? {});
@@ -24,17 +30,24 @@ function Form({ review, drafts, onDone }: { review: ReviewFull; drafts: AiDraft[
   const [actions, setActions] = useState<{ text: string }[]>(review.corrective_actions ?? []);
   const [comments, setComments] = useState(review.comments ?? "");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
-  const hint = suggestions(drafts);
+  const grade = aiGrade(drafts); const hint = grade?.items ?? {};
+  const useAi = () => { const next = { ...answers }; for (const [k, v] of Object.entries(hint)) if (["yes", "no", "na"].includes(v.suggested)) next[k] = v.suggested; setAnswers(next); if (grade?.outcome) setOutcome(grade.outcome); };
   const submit = async () => { setBusy(true); setErr(null); try { await submitReview(review.id, outcome, answers, issues.filter((i) => i.text.trim()), actions.filter((a) => a.text.trim()), comments); onDone(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
     <div className="space-y-3">
-      <p className="text-xs text-slate-500">You answer every question yourself. Where an AI draft has a suggestion it is shown as a hint only, and never fills in an answer.</p>
+      {grade ? (
+        <div className="space-y-1.5 rounded-lg border border-violet-200 bg-violet-50/60 p-3 text-xs dark:border-violet-500/30 dark:bg-violet-500/10">
+          <p>The AI has graded this call from the transcript{grade.outcome ? ` and suggests “${REVIEW_OUTCOME_LABEL[grade.outcome] ?? grade.outcome}”` : ""}. Listen to the call, then confirm or change each answer. Nothing counts until you submit and it is approved.</p>
+          {grade.reason && <p className="text-slate-600 dark:text-slate-300">{grade.reason}</p>}
+          <button type="button" className="btn btn-secondary px-3 py-1 text-xs" onClick={useAi}>Start from the AI’s grading</button>
+        </div>
+      ) : <p className="text-xs text-slate-500">No AI grading is available for this call, so answer each question from the recording.</p>}
       <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
         {CHECKLIST.map((c) => (
           <li key={c.key} className="px-3 py-2">
             <div className="flex flex-wrap items-center gap-3"><span className="min-w-0 flex-1 text-sm">{c.label}</span>
               {(["yes", "no", "na"] as const).map((v) => <label key={v} className="flex items-center gap-1 text-xs"><input type="radio" name={c.key} checked={answers[c.key] === v} onChange={() => setAnswers({ ...answers, [c.key]: v })} />{v === "na" ? "N/A" : v === "yes" ? "Yes" : "No"}</label>)}</div>
-            {hint[c.key] && <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">AI hint (unchecked): {hint[c.key].suggested}. {hint[c.key].evidence}</p>}
+            {hint[c.key] && <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">AI says {hint[c.key].suggested.toUpperCase()}{hint[c.key].evidence ? `: ${hint[c.key].evidence}` : ""}{answers[c.key] && hint[c.key].suggested !== "unclear" && answers[c.key] !== hint[c.key].suggested && <b className="ml-1 text-amber-700"> · you changed this</b>}</p>}
           </li>))}
       </ul>
       <div><label className="label">Overall finding</label><select className="input" value={outcome} onChange={(e) => setOutcome(e.target.value)}>{Object.entries(REVIEW_OUTCOME_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
@@ -99,6 +112,7 @@ export function ReviewPanel({ callId, review, drafts, myId, onChanged }: { callI
           {(review.issues?.length ?? 0) > 0 && <div className="mt-2"><p className="text-xs font-bold">Issues</p><ul className="text-xs">{review.issues!.map((i, k) => <li key={k}>{SEV[i.severity] ?? i.severity}: {i.text}</li>)}</ul></div>}
           {(review.corrective_actions?.length ?? 0) > 0 && <div className="mt-2"><p className="text-xs font-bold">Corrective actions</p><ul className="text-xs">{review.corrective_actions!.map((i, k) => <li key={k}>{i.text}</li>)}</ul></div>}
           {review.comments && <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{review.comments}</p>}
+          {(() => { const g = aiGrade(drafts); const ag = agreement(g, review.checklist); return ag ? <p className="mt-2 text-[11px] text-violet-700 dark:text-violet-300">The AI’s grading matched the reviewer on {ag.same} of {ag.total} answers{g?.outcome && review.outcome ? (g.outcome === review.outcome ? "; the overall finding matched." : `; it suggested “${REVIEW_OUTCOME_LABEL[g.outcome] ?? g.outcome}” overall.`) : "."}</p> : null; })()}
         </div>
       )}
       {["pending_approval", "escalated"].includes(s) && (

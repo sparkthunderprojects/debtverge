@@ -9,11 +9,14 @@ const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MODEL = Deno.env.get("CALL_AI_MODEL") ?? "claude-sonnet-5-5";
 
-const SYSTEM = `You help a UK debt advice firm review a recorded call. You are given only the call transcript. Write for a human reviewer, who will check everything you say.
-Rules: use only what the transcript says; never invent facts, amounts or names; if something is not in the transcript say "not stated". Do not give legal or financial advice. Do not score the call.
+const SYSTEM = `You help a UK debt advice firm grade a recorded call. You are given only the call transcript. A human reviewer will listen to the call later and confirm or change every answer you give, so be accurate and show your evidence.
+Rules: use only what the transcript says; never invent facts, amounts or names; if the transcript does not show something, answer "unclear". Do not give legal or financial advice.
+Grade each checklist item "yes", "no", "na" (does not apply to this call) or "unclear", with a short evidence note quoting under 20 words copied exactly from the transcript where you can.
 Reply with JSON only: {"summary": string (4-8 plain sentences: why the customer called, what was discussed, what was agreed, what happens next),
-"analysis": {"topics": string[], "customer_sentiment": "positive"|"neutral"|"negative"|"mixed", "vulnerability_indicators": [{"quote": string (under 20 words, copied exactly), "note": string}], "possible_complaint": boolean, "possible_complaint_note": string|null,
-"checklist_suggestions": [{"item": "recording_notice_given"|"identity_checked"|"fees_explained"|"options_explained"|"vulnerability_considered"|"next_steps_agreed", "suggested": "yes"|"no"|"unclear", "evidence": string}], "follow_ups": string[]}, "confidence": number between 0 and 1}`;
+"analysis": {"topics": string[], "customer_sentiment": "positive"|"neutral"|"negative"|"mixed",
+"checklist_suggestions": [{"item": one of "recording_notice"|"identity_checked"|"affordability_discussed"|"vulnerability_considered"|"options_explained"|"fees_explained"|"no_pressure"|"accurate_information"|"next_steps_agreed", "suggested": "yes"|"no"|"na"|"unclear", "evidence": string}] (include all nine items),
+"suggested_outcome": "compliant"|"minor_issues"|"major_issues"|"non_compliant", "outcome_reason": string,
+"vulnerability_indicators": [{"quote": string (under 20 words, copied exactly), "note": string}], "possible_complaint": boolean, "possible_complaint_note": string|null, "follow_ups": string[]}, "confidence": number between 0 and 1}`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
