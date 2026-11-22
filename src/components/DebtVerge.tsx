@@ -114,6 +114,8 @@ import type {
 } from "@/lib/types";
 import { CallsPanel } from "@/components/CallsPanel";
 import { ComplianceScreen } from "@/components/ComplianceScreen";
+import { SoftphoneDrawer } from "@/components/phone/SoftphoneDrawer";
+import { SoftphoneProvider } from "@/lib/softphone";
 import { IncomeCalcButton } from "@/components/income-calc/IncomeCalcButton";
 import { KnowledgeAssistantDrawer } from "@/components/knowledge/KnowledgeAssistantDrawer";
 import { DebtVergeNav } from "@/components/DebtVergeNav";
@@ -264,7 +266,7 @@ export function DebtVergeWorkspace({
   const [extraScreen, setExtraScreen] = useState<"clients" | "payments" | "compliance" | null>(null);
   const [listOpen, setListOpen] = useState(() => { try { return localStorage.getItem("dv_case_list_open") !== "0"; } catch { return true; } });
   const toggleList = () => setListOpen((o) => { const n = !o; try { localStorage.setItem("dv_case_list_open", n ? "1" : "0"); } catch { /* ignore */ } return n; });
-  const { dvRole, canViewAs, viewAs, setViewAs, realDvRole } = useAuth();
+  const { dvRole, canViewAs, viewAs, setViewAs, realDvRole, user: authUser } = useAuth();
 
   // ── Workspace Agent Role & View Mode (DMP vs IVA dual workspace) ──
   const [agentRole, setAgentRole] = useState<DebtVergeAgentRole>(
@@ -403,6 +405,7 @@ export function DebtVergeWorkspace({
   }, [viewMode]);
 
   return (
+    <SoftphoneProvider enabled={hasPhone} userId={authUser?.id ?? null}>
     <div className="flex h-full flex-col overflow-hidden">
       <DebtVergeNav
         appName={standaloneAppName}
@@ -892,7 +895,9 @@ export function DebtVergeWorkspace({
         />
       )}
     </div>
+      <SoftphoneDrawer onOpenCase={(id) => { setShowTeam(false); setExtraScreen(null); setShowNewCase(false); setActiveCaseId(id); }} />
     </div>
+    </SoftphoneProvider>
   );
 }
 

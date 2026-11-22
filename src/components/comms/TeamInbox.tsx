@@ -18,6 +18,7 @@ import { DebtorContextSidebar } from "@/components/comms/DebtorContextSidebar";
 import type { QueueItem, FilterTab } from "@/components/comms/comms-shared";
 import { mapPlanToPipeline, rowToComm } from "@/components/comms/comms-shared";
 import { addAuditMilestone } from "@/lib/debt-hooks";
+import { useSoftphoneOptional } from "@/lib/softphone";
 
 // ============================================================
 // Team Communications Workspace — 3-Column Full-Panel Layout
@@ -26,6 +27,7 @@ import { addAuditMilestone } from "@/lib/debt-hooks";
 export function TeamCommsWorkspace({
   agentId, agentName, selectedCaseId, onViewCaseRecord,
 }: { agentId: string; agentName: string; selectedCaseId?: string | null; onViewCaseRecord?: () => void }) {
+  const phone = useSoftphoneOptional();
   // ---- Shared state across all 3 columns ----
   const [activeQueue, setActiveQueue] = useState<FilterTab>("my_assigned");
   const [search, setSearch] = useState("");
@@ -148,36 +150,11 @@ export function TeamCommsWorkspace({
   }
 
   async function handleStartVoipCall(item: QueueItem) {
-    const callLog = {
-      durationSeconds: 0,
-      direction: "outbound" as const,
-      outcome: "completed" as const,
-      phoneNumber: item.debtorPhone ?? "Unknown",
-    };
-    try {
-      await sendMessage({
-        caseId: item.caseId,
-        threadId: item.threadId,
-        channel: "internal_note",
-        direction: "outbound",
-        sender: { name: agentName, emailOrPhone: "", type: "agent" },
-        recipient: { name: item.debtorName, emailOrPhone: item.debtorPhone ?? "" },
-        agentId,
-        agentName,
-        content: { body: `[VOIP]${JSON.stringify(callLog)}` },
-        status: "delivered",
-      });
-      await addAuditMilestone({
-        case_id: item.caseId,
-        milestone: "VoIP Call Initiated",
-        description: `Agent ${agentName} started an outbound VoIP call to ${item.debtorName}.`,
-        actor: agentName,
-      });
-      showToast(`VoIP call started for ${item.debtorName}`);
-      reloadQueue();
-    } catch (e) {
-      showToast(`Call failed: ${(e as Error).message}`);
-    }
+    // a real call through the softphone: the case, recording and wrap-up are all created by the phone itself
+    if (!phone?.enabled) { showToast("Phone is not part of your licence."); return; }
+    if (!item.debtorPhone) { showToast(`${item.debtorName} has no phone number on file.`); return; }
+    phone.setOpen(true);
+    await phone.dial(item.caseId, item.debtorPhone);
   }
 
   async function handleIssueBreather(item: QueueItem) {
