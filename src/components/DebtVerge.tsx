@@ -14,7 +14,7 @@ import {
   ThumbsUp, ThumbsDown, CircleDot, Sparkles,
   Upload, Banknote as BanknoteIcon, FileSpreadsheet, ArrowLeftRight,
   CalendarClock, ClipboardCheck, TrendingUp, RefreshCw, GitBranch,
-  AlertTriangle, Activity, Pencil, Pause, MoreHorizontal, ListChecks, StickyNote, Link2,
+  AlertTriangle, Activity, Pencil, Pause, MoreHorizontal, ListChecks, StickyNote, PanelLeftClose, PanelLeftOpen, Link2,
   Wind, Hourglass, BellOff,
   FileUp, CalendarCheck, ShieldX, FlaskConical,
   UserCog, FileCheck, Vote, FileSignature, Network, Smartphone, Building,
@@ -256,6 +256,8 @@ export function DebtVergeWorkspace({
   const [showHandOver, setShowHandOver] = useState(false);
   const [showSuitability, setShowSuitability] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
+  const [listOpen, setListOpen] = useState(() => { try { return localStorage.getItem("dv_case_list_open") !== "0"; } catch { return true; } });
+  const toggleList = () => setListOpen((o) => { const n = !o; try { localStorage.setItem("dv_case_list_open", n ? "1" : "0"); } catch { /* ignore */ } return n; });
   const { dvRole, canViewAs, viewAs, setViewAs, realDvRole } = useAuth();
 
   // ── Workspace Agent Role & View Mode (DMP vs IVA dual workspace) ──
@@ -404,10 +406,19 @@ export function DebtVergeWorkspace({
         }}
       />
       <div className="flex min-h-0 flex-1 gap-4 p-4">
-      {/* Case List Sidebar */}
-      <div className="flex w-64 shrink-0 flex-col sm:w-72">
+      {/* Case List Sidebar (collapsible) */}
+      {!listOpen && (
+        <div className="panel flex w-12 shrink-0 flex-col items-center gap-2 py-3">
+          <button onClick={toggleList} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Show case list" aria-label="Show case list"><PanelLeftOpen className="h-4 w-4" /></button>
+          <button onClick={() => { setActiveCaseId(null); setShowTeam(false); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Home" aria-label="Home"><LayoutDashboard className="h-4 w-4" /></button>
+          {dvRole !== "advisor" && <button onClick={() => { setActiveCaseId(null); setShowTeam(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Team" aria-label="Team"><Users className="h-4 w-4" /></button>}
+          <button onClick={() => setShowNewCase(true)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700" title="New Case" aria-label="New case"><Plus className="h-4 w-4" /></button>
+        </div>
+      )}
+      <div className={`${listOpen ? "flex" : "hidden"} w-64 shrink-0 flex-col sm:w-72`}>
         <div className="panel flex min-h-0 flex-1 flex-col p-3">
           <div className="mb-3 flex items-center justify-between">
+            <button onClick={toggleList} className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Hide case list" aria-label="Hide case list"><PanelLeftClose className="h-4 w-4" /></button>
             <button onClick={() => { setActiveCaseId(null); setShowTeam(false); }} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold transition-colors ${!selectedCase && !showTeam ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"}`} title="Home">
               <LayoutDashboard className="h-4 w-4" /> Home
             </button>
