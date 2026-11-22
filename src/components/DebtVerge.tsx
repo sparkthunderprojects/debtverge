@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Calculator as FileCalc, Landmark, GitCompareArrows, ScrollText,
   Plus, Search, Trash2, Eye, TrendingDown, Wallet, Users, Calendar,
@@ -372,11 +372,13 @@ export function DebtVergeWorkspace({
   }, [cases, statusFilter, search, viewMode, ivaStageFilter, draftStageFilter]);
 
   // Auto-select first case (or the case passed from a cross-app transfer)
+  const appliedInitialCase = useRef<string | null>(null);
   useEffect(() => {
-    if (initialCaseId && cases.some((c) => c.id === initialCaseId)) {
+    if (initialCaseId && appliedInitialCase.current !== initialCaseId && cases.some((c) => c.id === initialCaseId)) {
+      appliedInitialCase.current = initialCaseId;
       setActiveCaseId(initialCaseId);
     }
-  }, [filteredCases, activeCaseId, setActiveCaseId, initialCaseId, cases]);
+  }, [setActiveCaseId, initialCaseId, cases]);
 
   // Auto-seed IVA demo cases for iva_agent / draft_agent / admin_supervisor roles when no IVA cases exist
   const [seeding, setSeeding] = useState(false);

@@ -1,5 +1,5 @@
 import {
-  createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode,
+  createContext, useContext, useState, useCallback, useEffect, useMemo, useRef, type ReactNode,
 } from "react";
 import {
   useDebtCases, useDebtCreditors, useDebtSfsEntries, useDebtCustomerProfile,
@@ -405,10 +405,13 @@ export function DebtVergeCaseProvider({ children }: { children: ReactNode }) {
   const [stageHistory, setStageHistory] = useState<PipelineStageEntry[]>([]);
   const [pipelineOverride, setPipelineOverride] = useState<DebtSolutionPipeline | null>(null);
 
+  // Pick the first client once, when the list first loads. It must not run again when the user
+  // deliberately clears the selection (Clients, Payment Suite, Home), or those screens can never open.
+  const autoSelected = useRef(false);
   useEffect(() => {
-    if (!activeCaseId && cases.length > 0) {
-      setActiveCaseId(cases[0].id);
-    }
+    if (autoSelected.current || cases.length === 0) return;
+    autoSelected.current = true;
+    if (!activeCaseId) setActiveCaseId(cases[0].id);
   }, [cases, activeCaseId]);
 
   const selectedCase = cases.find((c) => c.id === activeCaseId) ?? null;
