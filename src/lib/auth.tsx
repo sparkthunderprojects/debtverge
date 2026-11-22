@@ -28,6 +28,11 @@ interface AuthContextValue {
   isExternalContractor: boolean;
   organizationId: string | null;
   dvRole: DvRole;
+  /** The role the database actually knows you as. dvRole may be a "view as" preview of it. */
+  realDvRole: DvRole;
+  canViewAs: boolean;
+  viewAs: DvRole | null;
+  setViewAs: (r: DvRole | null) => void;
   permissions: Set<string>;
   hasModuleAccess: (module: string, action?: string) => boolean;
   canAccessApp: (appKey: string) => boolean;
@@ -147,6 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const [viewAs, setViewAsState] = useState<DvRole | null>(() => { try { return (sessionStorage.getItem("dv_view_as") as DvRole | null) || null; } catch { return null; } });
+  const setViewAs = useCallback((r: DvRole | null) => { setViewAsState(r); try { if (r) sessionStorage.setItem("dv_view_as", r); else sessionStorage.removeItem("dv_view_as"); } catch { /* ignore */ } }, []);
   const isSuperAdmin = role === "super_admin";
   const isAdmin = role === "admin";
   const isAdminOrHigher = role === "super_admin" || role === "admin";
@@ -163,6 +170,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isSuperAdmin,
   );
 
+  const realDvRole = deriveDvRole(roleNames, isAdminOrHigher);
+  // Preview only changes what the screens show. The database still enforces your real permissions.
+  const canViewAs = isAdminOrHigher || realDvRole === "operations_manager";
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -177,7 +188,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdminOrHigher,
       isExternalContractor,
       organizationId: orgIds[0] ?? null,
-      dvRole: deriveDvRole(roleNames, isAdminOrHigher),
+      dvRole: canViewAs && viewAs ? viewAs : realDvRole,
+      realDvRole,
+      canViewAs,
+      viewAs: canViewAs ? viewAs : null,
+      setViewAs,
       permissions,
       hasModuleAccess,
       canAccessApp,
@@ -200,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) await loadUserRole(session.user.id);
       },
     }),
-    [session, loading, role, freelancerProfileId, onboardingCompleted, impersonatingFreelancerId, isSuperAdmin, isAdmin, isAdminOrHigher, isExternalContractor, orgIds, roleNames, permissions, hasModuleAccess, canAccessApp, subscriptionAppKeys, entitlementsLoading],
+    [session, loading, role, freelancerProfileId, onboardingCompleted, impersonatingFreelancerId, isSuperAdmin, isAdmin, isAdminOrHigher, isExternalContractor, orgIds, roleNames, permissions, hasModuleAccess, canAccessApp, subscriptionAppKeys, entitlementsLoading, viewAs, setViewAs, realDvRole, canViewAs],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

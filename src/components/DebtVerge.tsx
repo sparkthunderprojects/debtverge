@@ -254,7 +254,7 @@ export function DebtVergeWorkspace({
   const [showHandOver, setShowHandOver] = useState(false);
   const [showSuitability, setShowSuitability] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
-  const { dvRole } = useAuth();
+  const { dvRole, canViewAs, viewAs, setViewAs, realDvRole } = useAuth();
 
   // ── Workspace Agent Role & View Mode (DMP vs IVA dual workspace) ──
   const [agentRole, setAgentRole] = useState<DebtVergeAgentRole>(
@@ -416,6 +416,20 @@ export function DebtVergeWorkspace({
               </button>
             </div>
           </div>
+
+          {canViewAs && (
+            <div className="mb-2 rounded-lg bg-amber-50 p-1.5 dark:bg-amber-500/10" title="Preview what each role sees. Your real permissions still apply in the database.">
+              <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">View as</p>
+              <div className="flex gap-1">
+                {([["advisor", "Advisor"], ["team_manager", "Manager"], ["operations_manager", "Ops"]] as const).map(([r, label]) => {
+                  const active = (viewAs ?? (realDvRole === "admin" ? "advisor" : realDvRole)) === r;
+                  return (
+                    <button key={r} onClick={() => { setViewAs(r); setShowTeam(false); }} className={`flex-1 rounded-md px-1.5 py-1 text-[11px] font-bold transition-all ${active ? "bg-amber-500 text-white shadow-sm" : "text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-500/20"}`}>{label}</button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Workspace View Toggle — DMP / IVA / All */}
           <div className="mb-2 flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">

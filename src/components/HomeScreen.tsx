@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   AlertTriangle, ArrowRight, Banknote, CalendarClock, Inbox, Loader2, Plus, ShieldAlert, Users, Wallet, TrendingUp, UserCog,
 } from "lucide-react";
@@ -27,9 +26,7 @@ function defaultView(role: DvRole): View {
 export function HomeScreen({ onOpenCase, onNewCase }: { onOpenCase: (id: string) => void; onNewCase: () => void }) {
   const { user, dvRole } = useAuth();
   const { data, loading } = useHomeData();
-  const [preview, setPreview] = useState<View | null>(null);
-  const view: View = preview ?? defaultView(dvRole);
-  const canPreview = dvRole === "admin";
+  const view: View = defaultView(dvRole);
 
   if (loading) return <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-emerald-600" /></div>;
 
@@ -50,15 +47,6 @@ export function HomeScreen({ onOpenCase, onNewCase }: { onOpenCase: (id: string)
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">{VIEW_LABEL[view]}</h2>
           <p className="text-xs text-slate-400">{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
         </div>
-        {canPreview && (
-          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800" title="Preview what each role sees">
-            {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
-              <button key={v} onClick={() => setPreview(v)} className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition-all ${view === v ? "bg-emerald-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"}`}>
-                {VIEW_LABEL[v]}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
       {view === "advisor" && <AdvisorHome data={data} userId={user?.id ?? null} onOpenCase={onOpenCase} />}
       {view === "team_manager" && <TeamHome data={data} onOpenCase={onOpenCase} />}
