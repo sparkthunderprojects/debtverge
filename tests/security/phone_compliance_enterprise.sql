@@ -108,10 +108,10 @@ DO $$ DECLARE c1 uuid := current_setting('t.c1')::uuid; rid uuid; BEGIN
   BEGIN PERFORM dv_compliance_assign(c1,NULL); RAISE EXCEPTION 'R2 second review'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
   BEGIN PERFORM dv_compliance_submit(rid,'compliant','{"recording_notice":"yes"}'::jsonb,'[]'::jsonb,'[]'::jsonb,NULL); RAISE EXCEPTION 'R3 submit before start'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
   PERFORM dv_compliance_start(rid);
-  BEGIN PERFORM dv_compliance_submit(rid,'compliant','{"recording_notice":"yes","vulnerability_considered":"no"}'::jsonb,'[]'::jsonb,'[]'::jsonb,NULL); RAISE EXCEPTION 'R4 compliant with a no'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
-  BEGIN PERFORM dv_compliance_submit(rid,'non_compliant','{"recording_notice":"no"}'::jsonb,'[]'::jsonb,'[]'::jsonb,'Notice not given'); RAISE EXCEPTION 'R5 non-compliant without issue'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
+  BEGIN PERFORM dv_compliance_submit(rid,'compliant','{"recording_notice":"yes","identity_checked":"yes","vulnerability_considered":"no","options_explained":"yes","affordability_discussed":"na","fees_explained":"na","no_pressure":"na","accurate_information":"na","next_steps_agreed":"na"}'::jsonb,'[]'::jsonb,'[]'::jsonb,NULL); RAISE EXCEPTION 'R4 compliant with a no'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
+  BEGIN PERFORM dv_compliance_submit(rid,'non_compliant','{"recording_notice":"no","identity_checked":"yes","vulnerability_considered":"yes","options_explained":"yes","affordability_discussed":"na","fees_explained":"na","no_pressure":"na","accurate_information":"na","next_steps_agreed":"na"}'::jsonb,'[]'::jsonb,'[]'::jsonb,'Notice not given'); RAISE EXCEPTION 'R5 non-compliant without issue'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
   BEGIN PERFORM dv_compliance_submit(rid,'minor_issues','{"recording_notice":"yes","BAD KEY":"yes"}'::jsonb,'[]'::jsonb,'[]'::jsonb,NULL); RAISE EXCEPTION 'R6 bad key'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
-  IF dv_compliance_submit(rid,'minor_issues','{"recording_notice":"yes","identity_checked":"yes","vulnerability_considered":"no","options_explained":"yes"}'::jsonb,'[{"severity":"minor","text":"Vulnerability not explored"}]'::jsonb,'[{"text":"Refresh vulnerability prompts"}]'::jsonb,'Needs a prompt on vulnerability') <> 75 THEN RAISE EXCEPTION 'R7 score wrong'; END IF;
+  IF dv_compliance_submit(rid,'minor_issues','{"recording_notice":"yes","identity_checked":"yes","vulnerability_considered":"no","options_explained":"yes","affordability_discussed":"na","fees_explained":"na","no_pressure":"na","accurate_information":"na","next_steps_agreed":"na"}'::jsonb,'[{"severity":"minor","text":"Vulnerability not explored"}]'::jsonb,'[{"text":"Refresh vulnerability prompts"}]'::jsonb,'Needs a prompt on vulnerability') <> 75 THEN RAISE EXCEPTION 'R7 score wrong'; END IF;
   BEGIN PERFORM dv_compliance_decide(rid,'approve'); RAISE EXCEPTION 'R8 reviewer approved own review'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $$;
 SELECT set_config('request.jwt.claims','{"sub":"aaaaaaaa-0000-0000-0000-00000000000a","role":"authenticated"}',true);
@@ -150,7 +150,7 @@ END $$;
 SELECT set_config('request.jwt.claims','{"sub":"aaaaaaaa-0000-0000-0000-00000000000e","role":"authenticated"}',true);
 DO $$ DECLARE rid uuid := current_setting('t.r2')::uuid; BEGIN
   PERFORM dv_compliance_start(rid);
-  PERFORM dv_compliance_submit(rid,'major_issues','{"recording_notice":"no","identity_checked":"yes"}'::jsonb,'[{"severity":"major","text":"No recording notice given"}]'::jsonb,'[]'::jsonb,'The recording notice was not given at the start');
+  PERFORM dv_compliance_submit(rid,'major_issues','{"recording_notice":"no","identity_checked":"yes","vulnerability_considered":"yes","options_explained":"yes","affordability_discussed":"na","fees_explained":"na","no_pressure":"na","accurate_information":"na","next_steps_agreed":"na"}'::jsonb,'[{"severity":"major","text":"No recording notice given"}]'::jsonb,'[]'::jsonb,'The recording notice was not given at the start');
   BEGIN PERFORM dv_compliance_escalate(rid,'aaaaaaaa-0000-0000-0000-00000000000a','Serious breach found'); RAISE EXCEPTION 'E3 escalated to the adviser'; EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
   PERFORM dv_compliance_escalate(rid,'aaaaaaaa-0000-0000-0000-00000000000d','Serious breach found on the call');
   BEGIN PERFORM dv_compliance_decide(rid,'approve'); RAISE EXCEPTION 'E4 reviewer decided own escalated review'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
