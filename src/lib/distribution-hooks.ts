@@ -16,7 +16,7 @@ export function useDistributions(caseId: string | null) {
     if (!caseId) { setRuns([]); setFunds(null); setLoading(false); return; }
     const [r, f] = await Promise.all([
       supabase.from("disbursement_runs").select("*").eq("case_id", caseId).order("created_at", { ascending: false }).limit(10),
-      supabase.rpc("dv_case_funds_held", { p_case: caseId }),
+      supabase.rpc("dv_case_distributable", { p_case: caseId }),
     ]);
     const list = (r.data ?? []) as Omit<DistributionRun, "items">[];
     const ids = list.map((x) => x.id);

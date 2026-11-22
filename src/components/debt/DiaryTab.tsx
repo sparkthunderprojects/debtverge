@@ -3,6 +3,7 @@ import { CalendarClock, Check, CheckCircle2, Clock, Phone, Plus, RotateCcw, Shie
 import { useAuth } from "../../lib/auth";
 import { useCaseTasks, createTask, setTaskStatus, snoozeTask, logDiaryNote, TASK_KIND_LABEL, type CaseTask, type TaskKind } from "../../lib/task-hooks";
 import type { DebtCase } from "../../lib/types";
+import { ComplaintsPanel } from "./ComplaintsPanel";
 
 const KIND_ICON: Record<TaskKind, React.ReactNode> = {
   task: <ClipboardList className="h-4 w-4" />, call: <Phone className="h-4 w-4" />, statutory: <ShieldCheck className="h-4 w-4" />,
@@ -131,6 +132,7 @@ export function DiaryTab({ caseId, caseData }: { caseId: string | null; caseData
           </div>
         )}
       </div>
+      <ComplaintsPanel caseId={caseId} defaultName={caseData.debtor_name} />
       <p className="flex items-center gap-1.5 text-xs text-slate-400"><CalendarClock className="h-3.5 w-3.5" /> Tasks are created automatically as the case moves through its stages.</p>
     </div>
   );

@@ -7,6 +7,8 @@ import { formatCurrency } from "@/lib/format";
 import { daysUntil, useHomeData, type HomeData } from "@/lib/home-hooks";
 import type { DebtCase } from "@/lib/types";
 import { ClientMoneyPanel } from "@/components/debt/ClientMoneyPanel";
+import { ComplaintsPanel } from "@/components/debt/ComplaintsPanel";
+import { FeeRulesPanel } from "@/components/debt/FeeRulesPanel";
 
 type View = "advisor" | "team_manager" | "operations_manager";
 
@@ -185,6 +187,8 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
         </table>
       </div>
       <ClientMoneyPanel onOpenCase={onOpenCase} />
+      <ComplaintsPanel onOpenCase={onOpenCase} />
+      <FeeRulesPanel />
       <Section title="Overdue across the team" count={overdue.length} empty="No overdue payments.">
         {overdue.map((c) => <CaseRow key={c.id} c={c} tone="rose" note={`${data.names[c.assigned_to ?? ""] ?? "Unassigned"} · ${overdueDays(c)}d overdue`} onOpen={() => onOpenCase(c.id)} />)}
       </Section>
@@ -219,6 +223,8 @@ function OpsHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: string
         <Tile icon={<Banknote className="h-4 w-4" />} label="Creditor payouts" value={data.distributionsScheduled} sub={data.distributionsFailed ? `${data.distributionsFailed} failed` : "scheduled, none failed"} tone={data.distributionsFailed ? "rose" : "slate"} />
       </div>
       <ClientMoneyPanel onOpenCase={onOpenCase} />
+      <ComplaintsPanel onOpenCase={onOpenCase} />
+      <FeeRulesPanel />
       <div className="panel p-4">
         <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Cases by stage</h3>
         <div className="space-y-2">

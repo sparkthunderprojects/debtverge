@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Banknote, CheckCircle2, Loader2 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { formatCurrency } from "../../lib/format";
+import { FeesPanel } from "./FeesPanel";
 import { useDistributions, createDistributionRun, approveDistributionRun, cancelDistributionRun, markDistributionPaid, type DistributionRun } from "../../lib/distribution-hooks";
 
 const gbp = (n: number) => formatCurrency(n, "GBP");
@@ -28,6 +29,8 @@ export function DistributionPanel({ caseId }: { caseId: string }) {
   if (loading) return <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>;
 
   return (
+    <div className="space-y-4">
+    <FeesPanel caseId={caseId} onChanged={reload} />
     <div className="panel space-y-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -35,7 +38,7 @@ export function DistributionPanel({ caseId }: { caseId: string }) {
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Pay creditors</h3>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500">Funds held: <b className="text-slate-800 dark:text-slate-100">{funds === null ? "n/a" : gbp(funds)}</b></span>
+          <span className="text-xs text-slate-500">Available to creditors: <b className="text-slate-800 dark:text-slate-100">{funds === null ? "n/a" : gbp(funds)}</b></span>
           <button disabled={busy || hasOpen || !funds || funds < 0.01} onClick={() => run(() => createDistributionRun(caseId))} className="btn btn-primary bg-emerald-600 hover:bg-emerald-700">Prepare payout</button>
         </div>
       </div>
@@ -74,6 +77,7 @@ export function DistributionPanel({ caseId }: { caseId: string }) {
           </div>
         );
       })}
+    </div>
     </div>
   );
 }
