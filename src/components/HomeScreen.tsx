@@ -8,6 +8,7 @@ import type { DebtCase } from "@/lib/types";
 import { ClientMoneyPanel } from "@/components/debt/ClientMoneyPanel";
 import { ComplaintsPanel } from "@/components/debt/ComplaintsPanel";
 import { ReportsPanel } from "@/components/debt/ReportsPanel";
+import { UnassignedInboxPanel } from "@/components/debt/UnassignedInboxPanel";
 import { BulkCreditorPanel } from "@/components/debt/BulkCreditorPanel";
 import { VoidedRecordsPanel } from "@/components/debt/VoidedRecordsPanel";
 import { FeeRulesPanel } from "@/components/debt/FeeRulesPanel";
@@ -178,6 +179,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
         </table>
       </div>
       <ClientMoneyPanel onOpenCase={onOpenCase} />
+      <UnassignedInboxPanel />
       <ComplaintsPanel onOpenCase={onOpenCase} />
       <ReportsPanel />
       <BulkCreditorPanel />
@@ -217,6 +219,7 @@ function OpsHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: string
         <Tile icon={<Banknote className="h-4 w-4" />} label="Creditor payouts" value={data.distributionsScheduled} sub={data.distributionsFailed ? `${data.distributionsFailed} failed` : "scheduled, none failed"} tone={data.distributionsFailed ? "rose" : "slate"} />
       </div>
       <ClientMoneyPanel onOpenCase={onOpenCase} />
+      <UnassignedInboxPanel />
       <ComplaintsPanel onOpenCase={onOpenCase} />
       <ReportsPanel />
       <BulkCreditorPanel />

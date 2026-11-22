@@ -34,14 +34,19 @@ Deno.serve(async (req) => {
   const twFrom = Deno.env.get("TWILIO_FROM");
   const twWaFrom = Deno.env.get("TWILIO_WHATSAPP_FROM") ?? twFrom;
   const emailReady = !!(resendKey && emailFrom);
-  const smsReady = !!(twSid && twToken && twFrom);
-  const waReady = !!(twSid && twToken && twWaFrom);
+  const smsReady = !!(twSid && twToken);   // the sending number comes from the firm; TWILIO_FROM is only a fallback
+  const waReady = !!(twSid && twToken);
   if (!emailReady && !smsReady && !waReady) return json({ sent: 0, note: "no provider configured; messages stay queued" });
 
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const channels = [emailReady ? "email" : null, smsReady ? "sms" : null, waReady ? "whatsapp" : null].filter(Boolean) as string[];
   const { data: rows, error } = await db.from("comms_outbox").select("*").eq("status", "queued").in("channel", channels).order("created_at").limit(50);
   if (error) return json({ error: error.message }, 500);
+
+  // each firm sends from its own number so replies come back to the same firm
+  const { data: numRows } = await db.from("org_phone_numbers").select("organization_id,e164").order("created_at");
+  const firmFrom = new Map<string, string>();
+  for (const n of numRows ?? []) if (!firmFrom.has(n.organization_id)) firmFrom.set(n.organization_id, n.e164);
 
   let sent = 0, failed = 0;
   for (const m of rows ?? []) {
@@ -62,7 +67,9 @@ Deno.serve(async (req) => {
       } else {
         const wa = m.channel === "whatsapp";
         const to = toE164(m.to_address);
-        const from = toE164(wa ? twWaFrom! : twFrom!);
+        const rawFrom = firmFrom.get(m.organization_id) ?? (wa ? twWaFrom : twFrom);
+        if (!rawFrom) throw new Error("this firm has no sending number registered");
+        const from = toE164(rawFrom);
         const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twSid}/Messages.json`, {
           method: "POST",
           headers: { Authorization: "Basic " + btoa(`${twSid}:${twToken}`), "Content-Type": "application/x-www-form-urlencoded" },

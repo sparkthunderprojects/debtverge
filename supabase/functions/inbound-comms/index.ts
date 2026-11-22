@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
   const channel = from.startsWith("whatsapp:") ? "whatsapp" : "sms";
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { error } = await db.rpc("dv_record_inbound", {
-    p_channel: channel, p_from: from.replace(/^whatsapp:/, ""), p_name: params.ProfileName ?? "", p_body: params.Body ?? "", p_provider_id: params.MessageSid ?? null,
+    p_channel: channel, p_from: from.replace(/^whatsapp:/, ""), p_name: params.ProfileName ?? "", p_body: params.Body ?? "", p_provider_id: params.MessageSid ?? null, p_to: (params.To ?? "").replace(/^whatsapp:/, ""),
   });
   if (error) return new Response("error", { status: 500 });   // Twilio retries; the provider id makes retries safe
   return xml();
