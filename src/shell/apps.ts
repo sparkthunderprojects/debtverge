@@ -50,5 +50,7 @@ export const SIGNUP_ROUTE = {
   Page: lazy(() => import("@/apps/debtverge/public").then((m) => ({ default: m.SignupRoute }))),
 };
 
-/** The app shown at the root. With one app this is simply DebtVerge; the switcher comes later. */
+/** Used for people who belong to no firm yet, so they are not locked out. */
 export const DEFAULT_APP = APPS[0];
+
+export const getApp = (id: string | null | undefined): AppDef | undefined => APPS.find((a) => a.id === id);

@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { Banknote, Bell, ClipboardCheck, ChevronDown, LogOut, Landmark, Moon, Sun, Users } from "lucide-react";
 import { useAuth } from "@/core/auth";
 import { useTheme } from "@/core/theme";
+import { AppSwitcher } from "@/core/AppSwitcher";
 import { supabase } from "@/core/supabase";
 import { ClientSearch } from "@/apps/debtverge/components/ClientSearch";
 
@@ -61,6 +62,7 @@ export function DebtVergeNav({ appName, showCompliance, onOpenCase, screen, onOp
         <span className={`text-sm font-bold tracking-tight ${dark ? "text-slate-100" : "text-slate-800"}`}>
           {appName}
         </span>
+        <AppSwitcher currentAppId="debtverge" dark={dark} />
       </div>
 
       {onOpenCase && <ClientSearch onOpenCase={onOpenCase} />}

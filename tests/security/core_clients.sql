@@ -10,6 +10,7 @@ INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, c
   ('c1000000-0000-0000-0000-00000000000a','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cc-adv-a@test.invalid','x',now(),now()),
   ('c1000000-0000-0000-0000-00000000000c','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cc-adv-a2@test.invalid','x',now(),now()),
   ('c1000000-0000-0000-0000-00000000000d','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cc-mgr-a@test.invalid','x',now(),now()),
+  ('c1000000-0000-0000-0000-00000000000e','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cc-mgr-a2@test.invalid','x',now(),now()),
   ('c2000000-0000-0000-0000-00000000000b','00000000-0000-0000-0000-000000000000','authenticated','authenticated','cc-adv-b@test.invalid','x',now(),now())
 ON CONFLICT (id) DO NOTHING;
 
@@ -20,10 +21,14 @@ SELECT seed_debtverge_roles('c1000000-1111-0000-0000-000000000001');
 SELECT seed_debtverge_roles('c2000000-1111-0000-0000-000000000002');
 INSERT INTO dv_org_products (organization_id, product_key) VALUES
   ('c1000000-1111-0000-0000-000000000001','dmp_advisor'),
-  ('c2000000-1111-0000-0000-000000000002','dmp_advisor');
+  ('c2000000-1111-0000-0000-000000000002','dmp_advisor'),
+  ('c1000000-1111-0000-0000-000000000001','qualifyverge');
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r JOIN rbac_permissions p ON p.module = 'QUALIFY' AND p.action IN ('view','edit')
+ WHERE r.organization_id = 'c1000000-1111-0000-0000-000000000001' AND r.name = 'Advisor';
 INSERT INTO organization_users (organization_id, user_id, role_id)
 SELECT 'c1000000-1111-0000-0000-000000000001', u.id, r.id FROM (VALUES
-  ('c1000000-0000-0000-0000-00000000000a'::uuid,'Advisor'),('c1000000-0000-0000-0000-00000000000c'::uuid,'Advisor'),('c1000000-0000-0000-0000-00000000000d'::uuid,'Team Manager')) u(id,rn)
+  ('c1000000-0000-0000-0000-00000000000a'::uuid,'Advisor'),('c1000000-0000-0000-0000-00000000000c'::uuid,'Advisor'),('c1000000-0000-0000-0000-00000000000d'::uuid,'Team Manager'),('c1000000-0000-0000-0000-00000000000e'::uuid,'Operations Manager')) u(id,rn)
 JOIN rbac_roles r ON r.organization_id = 'c1000000-1111-0000-0000-000000000001' AND r.name = u.rn;
 INSERT INTO organization_users (organization_id, user_id, role_id)
 SELECT 'c2000000-1111-0000-0000-000000000002','c2000000-0000-0000-0000-00000000000b', r.id FROM rbac_roles r WHERE r.organization_id='c2000000-1111-0000-0000-000000000002' AND r.name='Advisor';
@@ -147,14 +152,65 @@ BEGIN
   PERFORM core_client_change_stage(a1,'debtverge','qualify','Re-assess, may need an IVA');
   g := core_client_get(a1);
   IF g->'client'->>'current_stage' <> 'qualify' OR jsonb_array_length(g->'history') <> 2 THEN RAISE EXCEPTION 'FAIL 25: stage change not recorded'; END IF;
+  IF g->'client'->>'assigned_to' IS NOT NULL THEN RAISE EXCEPTION 'FAIL 26: the owner should be cleared when a client changes stage'; END IF;
+END $$;
+RESET ROLE;
 
-  -- closing, then reopening needs a manager other than the caller
+-- ===== adviser A2 (same firm, not the owner): cannot see the restricted client; can claim the unowned client in Qualify =====
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{"sub":"c1000000-0000-0000-0000-00000000000c","role":"authenticated"}',true);
+DO $$
+DECLARE a1 uuid; ok boolean; g jsonb;
+BEGIN
+  a1 := current_setting('cc.a1client')::uuid;
+  ok := false;
+  BEGIN PERFORM core_client_get(current_setting('cc.a2client')::uuid); EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
+  IF NOT ok THEN RAISE EXCEPTION 'FAIL 32: restricted client readable by another adviser'; END IF;
+  IF jsonb_array_length(core_client_list()) <> 1 THEN RAISE EXCEPTION 'FAIL 33: adviser A2 should list only the unrestricted client'; END IF;
+  g := core_client_get(a1);
+  IF (g->>'can_change')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'FAIL 34: an unowned client should be workable by someone allowed to edit Qualify'; END IF;
+  ok := false;
+  BEGIN PERFORM core_client_assign(a1, 'c1000000-0000-0000-0000-00000000000a'); EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
+  IF NOT ok THEN RAISE EXCEPTION 'FAIL 35: someone assigned a client to a colleague without being owner or manager'; END IF;
+  PERFORM core_client_assign(a1, 'c1000000-0000-0000-0000-00000000000c');  -- claim
+  g := core_client_get(a1);
+  IF g->'client'->>'assigned_to' <> 'c1000000-0000-0000-0000-00000000000c' THEN RAISE EXCEPTION 'FAIL 36: claim did not take'; END IF;
+END $$;
+RESET ROLE;
+
+-- ===== adviser A again: no longer owns the client, so cannot move or reassign it =====
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{"sub":"c1000000-0000-0000-0000-00000000000a","role":"authenticated"}',true);
+DO $$
+DECLARE a1 uuid; ok boolean; g jsonb;
+BEGIN
+  a1 := current_setting('cc.a1client')::uuid;
+  g := core_client_get(a1);
+  IF (g->>'can_change')::boolean IS NOT FALSE OR jsonb_array_length(g->'next_stages') <> 0 THEN RAISE EXCEPTION 'FAIL 36b: a non-owner can change a client owned by someone else'; END IF;
+  ok := false;
+  BEGIN PERFORM core_client_change_stage(a1,'qualify','closed','Trying to close a colleague''s client'); EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
+  IF NOT ok THEN RAISE EXCEPTION 'FAIL 36c: a non-owner moved the client'; END IF;
+END $$;
+RESET ROLE;
+
+-- ===== manager A: sees the restricted client, can change any client, and reopens with a second manager =====
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims','{"sub":"c1000000-0000-0000-0000-00000000000d","role":"authenticated"}',true);
+DO $$
+DECLARE a1 uuid; a2 uuid; g jsonb; ok boolean;
+BEGIN
+  a1 := current_setting('cc.a1client')::uuid;
+  IF jsonb_array_length(core_client_list()) <> 2 THEN RAISE EXCEPTION 'FAIL 37: manager should list both clients of firm A'; END IF;
+  a2 := current_setting('cc.a2client')::uuid;
+  g := core_client_get(a2);
+  IF (g->>'can_change')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'FAIL 38: manager cannot change a restricted client'; END IF;
+
   PERFORM core_client_change_stage(a1,'qualify','closed','Client withdrew from the process');
   ok := false;
   BEGIN PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart'); EXCEPTION WHEN invalid_parameter_value THEN ok := true; END;
   IF NOT ok THEN RAISE EXCEPTION 'FAIL 26: reopen without approver was accepted'; END IF;
   ok := false;
-  BEGIN PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart','c1000000-0000-0000-0000-00000000000a'); EXCEPTION WHEN invalid_parameter_value THEN ok := true; END;
+  BEGIN PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart','c1000000-0000-0000-0000-00000000000d'); EXCEPTION WHEN invalid_parameter_value THEN ok := true; END;
   IF NOT ok THEN RAISE EXCEPTION 'FAIL 27: self-approval was accepted'; END IF;
   ok := false;
   BEGIN PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart','c1000000-0000-0000-0000-00000000000c'); EXCEPTION WHEN invalid_parameter_value THEN ok := true; END;
@@ -162,43 +218,10 @@ BEGIN
   ok := false;
   BEGIN PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart','c2000000-0000-0000-0000-00000000000b'); EXCEPTION WHEN invalid_parameter_value THEN ok := true; END;
   IF NOT ok THEN RAISE EXCEPTION 'FAIL 29: another firm''s user was accepted as approver'; END IF;
-  PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart','c1000000-0000-0000-0000-00000000000d');
+  PERFORM core_client_change_stage(a1,'closed','qualify','Client wants to restart','c1000000-0000-0000-0000-00000000000e');
   g := core_client_get(a1);
   IF g->'client'->>'current_stage' <> 'qualify' OR jsonb_array_length(g->'history') <> 4 THEN RAISE EXCEPTION 'FAIL 30: reopen not recorded'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(g->'history') h WHERE h->>'approved_by' = 'c1000000-0000-0000-0000-00000000000d') THEN RAISE EXCEPTION 'FAIL 31: approver not recorded'; END IF;
-END $$;
-RESET ROLE;
-
--- ===== adviser A2 (same firm, not the owner): cannot see the restricted client or change A1's =====
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims','{"sub":"c1000000-0000-0000-0000-00000000000c","role":"authenticated"}',true);
-DO $$
-DECLARE a1 uuid; a2 uuid; ok boolean; g jsonb;
-BEGIN
-  SELECT client_id INTO a1 FROM debt_cases WHERE id = 'c1000000-2222-0000-0000-000000000001';
-  ok := false;
-  BEGIN PERFORM core_client_get(current_setting('cc.a2client')::uuid); EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
-  IF NOT ok THEN RAISE EXCEPTION 'FAIL 32: restricted client readable by another adviser'; END IF;
-  IF jsonb_array_length(core_client_list()) <> 1 THEN RAISE EXCEPTION 'FAIL 33: adviser A2 should list only the unrestricted client'; END IF;
-  g := core_client_get(a1);
-  IF (g->>'can_change')::boolean IS NOT FALSE THEN RAISE EXCEPTION 'FAIL 34: a non-owner adviser can change another adviser''s client'; END IF;
-  IF jsonb_array_length(g->'next_stages') <> 0 THEN RAISE EXCEPTION 'FAIL 35: next stages shown to someone who cannot change'; END IF;
-  ok := false;
-  BEGIN PERFORM core_client_change_stage(a1,'qualify','closed','Trying to close someone else''s client'); EXCEPTION WHEN insufficient_privilege THEN ok := true; END;
-  IF NOT ok THEN RAISE EXCEPTION 'FAIL 36: a non-owner adviser changed the stage'; END IF;
-END $$;
-RESET ROLE;
-
--- ===== manager A: sees the restricted client and can change any client in the firm =====
-SET LOCAL ROLE authenticated;
-SELECT set_config('request.jwt.claims','{"sub":"c1000000-0000-0000-0000-00000000000d","role":"authenticated"}',true);
-DO $$
-DECLARE a2 uuid; g jsonb;
-BEGIN
-  IF jsonb_array_length(core_client_list()) <> 2 THEN RAISE EXCEPTION 'FAIL 37: manager should list both clients of firm A'; END IF;
-  a2 := current_setting('cc.a2client')::uuid;
-  g := core_client_get(a2);
-  IF (g->>'can_change')::boolean IS NOT TRUE THEN RAISE EXCEPTION 'FAIL 38: manager cannot change a restricted client'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(g->'history') h WHERE h->>'approved_by' = 'c1000000-0000-0000-0000-00000000000e') THEN RAISE EXCEPTION 'FAIL 31: approver not recorded'; END IF;
 END $$;
 RESET ROLE;
 

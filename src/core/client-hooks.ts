@@ -83,6 +83,15 @@ export async function changeClientStage(input: {
   return data as { client_id: string; from_stage: ClientStage; to_stage: ClientStage };
 }
 
+/**
+ * Take an unowned client for yourself, or (as a manager or the current owner) hand it to a colleague.
+ * A client's owner is cleared whenever it changes stage, so the next team claims it.
+ */
+export async function assignClient(clientId: string, assigneeId: string): Promise<void> {
+  const { error } = await supabase.rpc("core_client_assign", { p_client: clientId, p_assignee: assigneeId });
+  if (error) throw new Error(error.message);
+}
+
 export function useClient(clientId: string | null | undefined) {
   const [detail, setDetail] = useState<CoreClientDetail | null>(null);
   const [loading, setLoading] = useState(false);
