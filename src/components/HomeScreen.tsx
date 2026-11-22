@@ -8,6 +8,7 @@ import type { DebtCase } from "@/lib/types";
 import { ClientMoneyPanel } from "@/components/debt/ClientMoneyPanel";
 import { ComplaintsPanel } from "@/components/debt/ComplaintsPanel";
 import { ReportsPanel } from "@/components/debt/ReportsPanel";
+import { BulkCreditorPanel } from "@/components/debt/BulkCreditorPanel";
 import { FeeRulesPanel } from "@/components/debt/FeeRulesPanel";
 
 type View = "advisor" | "team_manager" | "operations_manager";
@@ -178,6 +179,7 @@ function TeamHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: strin
       <ClientMoneyPanel onOpenCase={onOpenCase} />
       <ComplaintsPanel onOpenCase={onOpenCase} />
       <ReportsPanel />
+      <BulkCreditorPanel />
       <FeeRulesPanel />
       <Section title="Overdue across the team" count={overdue.length} empty="No overdue payments.">
         {overdue.map((c) => <CaseRow key={c.id} c={c} tone="rose" note={`${data.names[c.assigned_to ?? ""] ?? "Unassigned"} · ${overdueDays(c)}d overdue`} onOpen={() => onOpenCase(c.id)} />)}
@@ -215,6 +217,7 @@ function OpsHome({ data, onOpenCase }: { data: HomeData; onOpenCase: (id: string
       <ClientMoneyPanel onOpenCase={onOpenCase} />
       <ComplaintsPanel onOpenCase={onOpenCase} />
       <ReportsPanel />
+      <BulkCreditorPanel />
       <FeeRulesPanel />
       <div className="panel p-4">
         <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Cases by stage</h3>
