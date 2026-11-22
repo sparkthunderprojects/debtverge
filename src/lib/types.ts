@@ -165,6 +165,7 @@ export interface DebtCustomerProfile {
   landline_phone: string | null;
   mobile_phone: string | null;
   work_phone: string | null;
+  date_of_birth: string | null;
   address_street: string | null;
   address_city: string | null;
   address_postcode: string | null;

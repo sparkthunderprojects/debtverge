@@ -394,6 +394,7 @@ export function DebtVergeWorkspace({
     <div className="flex h-full flex-col overflow-hidden">
       <DebtVergeNav
         appName={standaloneAppName}
+        onOpenCase={(id) => { setShowTeam(false); setShowNewCase(false); setActiveCaseId(id); }}
         voipContext={{
           applicationSource: standaloneAppName,
           customerName: selectedCase?.debtor_name ?? null,
@@ -459,11 +460,6 @@ export function DebtVergeWorkspace({
                 {WORKSPACE_VIEW_META[vm].label}
               </button>
             ))}
-          </div>
-
-          <div className="relative mb-2">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search cases..." className="input pl-8 text-xs" />
           </div>
 
           {viewMode === "iva" ? (
@@ -1639,6 +1635,7 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
   const [primaryEmail, setPrimaryEmail] = useState("");
   const [landlinePhone, setLandlinePhone] = useState("");
   const [mobilePhone, setMobilePhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [workPhone, setWorkPhone] = useState("");
   const [addressStreet, setAddressStreet] = useState("");
   const [addressCity, setAddressCity] = useState("");
@@ -1661,6 +1658,7 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
       setPrimaryEmail(profile.primary_email ?? "");
       setLandlinePhone(profile.landline_phone ?? "");
       setMobilePhone(profile.mobile_phone ?? "");
+      setDateOfBirth(profile.date_of_birth ?? "");
       setWorkPhone(profile.work_phone ?? "");
       setAddressStreet(profile.address_street ?? "");
       setAddressCity(profile.address_city ?? "");
@@ -1703,6 +1701,7 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
         primary_email: primaryEmail || null,
         landline_phone: landlinePhone || null,
         mobile_phone: mobilePhone || null,
+        date_of_birth: dateOfBirth || null,
         work_phone: workPhone || null,
         address_street: addressStreet || null,
         address_city: addressCity || null,
@@ -1837,6 +1836,9 @@ function CustomerProfileTab({ caseId, caseData, onTabChange }: { caseId: string 
           </ProfileField>
           <ProfileField label="Mobile Number">
             <input value={mobilePhone} onChange={(e) => setMobilePhone(e.target.value)} onBlur={() => handleSaveSection("personal", { mobile_phone: mobilePhone || null })} className="input text-sm" placeholder="07700 900123" />
+          </ProfileField>
+          <ProfileField label="Date of Birth">
+            <input type="date" value={dateOfBirth} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDateOfBirth(e.target.value)} onBlur={() => handleSaveSection("personal", { date_of_birth: dateOfBirth || null })} className="input text-sm" />
           </ProfileField>
           <ProfileField label="Work Contact Number">
             <input value={workPhone} onChange={(e) => setWorkPhone(e.target.value)} onBlur={() => handleSaveSection("personal", { work_phone: workPhone || null })} className="input text-sm" placeholder="020 7946 0959" />

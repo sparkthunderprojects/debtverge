@@ -3,10 +3,12 @@ import { Bell, ChevronDown, LogOut, Landmark, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
+import { ClientSearch } from "@/components/ClientSearch";
 import { VoipCallButton } from "@/components/stormcall/VoipCallButton";
 
 export interface DebtVergeNavProps {
   appName: string;
+  onOpenCase?: (caseId: string) => void;
   voipContext?: {
     applicationSource: string;
     customerName?: string | null;
@@ -17,7 +19,7 @@ export interface DebtVergeNavProps {
   };
 }
 
-export function DebtVergeNav({ appName, voipContext }: DebtVergeNavProps) {
+export function DebtVergeNav({ appName, voipContext, onOpenCase }: DebtVergeNavProps) {
   const { user, signOut } = useAuth();
   const { theme, toggle } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -58,7 +60,7 @@ export function DebtVergeNav({ appName, voipContext }: DebtVergeNavProps) {
         dark ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/95"
       }`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-500 text-white shadow-sm">
           <Landmark className="h-3.5 w-3.5" />
         </div>
@@ -66,6 +68,8 @@ export function DebtVergeNav({ appName, voipContext }: DebtVergeNavProps) {
           {appName}
         </span>
       </div>
+
+      {onOpenCase && <ClientSearch onOpenCase={onOpenCase} />}
 
       <div className="flex items-center gap-1">
         {voipContext && (
