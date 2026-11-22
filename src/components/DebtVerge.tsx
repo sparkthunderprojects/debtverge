@@ -14,7 +14,7 @@ import {
   ThumbsUp, ThumbsDown, CircleDot, Sparkles,
   Upload, Banknote as BanknoteIcon, FileSpreadsheet, ArrowLeftRight,
   CalendarClock, ClipboardCheck, TrendingUp, RefreshCw, GitBranch,
-  AlertTriangle, Activity, Pencil, Pause, MoreHorizontal, ListChecks, Link2, ChevronDown,
+  AlertTriangle, Activity, Pencil, Pause, MoreHorizontal, ListChecks, Link2,
   Wind, Hourglass, BellOff,
   FileUp, CalendarCheck, ShieldX, FlaskConical,
   UserCog, FileCheck, Vote, FileSignature, Network, Smartphone, Building,
@@ -85,7 +85,7 @@ import {
   DebtorSelfServiceView, CreditorPortalView,
   PORTAL_ROLE_META,
 } from "@/components/debt/PortalViews";
-import type { DebtVergePortalRole, DebtVergeAgentRole, WorkspaceViewMode, IVACaseStatus } from "@/lib/types";
+import type { DebtVergePortalRole, DebtVergeAgentRole, WorkspaceViewMode, IVACaseStatus, DebtDistribution } from "@/lib/types";
 import { IVA_STATUS_META, AGENT_ROLE_META, WORKSPACE_VIEW_META } from "@/lib/types";
 import type {
   DebtCase, DebtCreditor, DebtSfsEntry, DebtAuditEntry,
@@ -112,7 +112,6 @@ import { VoipCallButton } from "@/components/stormcall/VoipCallButton";
 import { IncomeCalcButton } from "@/components/income-calc/IncomeCalcButton";
 import { KnowledgeAssistantDrawer } from "@/components/knowledge/KnowledgeAssistantDrawer";
 import { DebtVergeNav } from "@/components/DebtVergeNav";
-import { useAuth } from "@/lib/auth";
 
 type Tab = PipelineTab;
 
@@ -3227,7 +3226,7 @@ function BankTransactionImportSection({ caseId, caseData }: { caseId: string | n
                       <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{txn.description}</td>
                       <td className={`whitespace-nowrap px-4 py-3 text-right font-mono font-medium ${txn.amount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600 dark:text-slate-300"}`}>{txn.amount > 0 ? "+" : ""}{formatCurrency(Math.abs(txn.amount))}</td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${catMeta.color} ${catMeta.bg ?? ""}`}>{effectiveLabel}</span>
+                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${catMeta.color}`}>{effectiveLabel}</span>
                         {txn.manual_category && <span className="ml-1 text-[9px] text-slate-400">(override)</span>}
                       </td>
                       <td className="px-4 py-3"><span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${conf.color} ${conf.bg}`}>{conf.label}</span></td>
