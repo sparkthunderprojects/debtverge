@@ -1,0 +1,13 @@
+# Security headers (honoured by Netlify-style static hosts, including Bolt hosting).
+# No X-Frame-Options / frame-ancestors here so the Bolt editor preview keeps working; add them once the app is on its own domain.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+/sign/*
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+/pay/*
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
