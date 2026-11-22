@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { CHANNEL_META, FCA_TEMPLATES, type FcaTemplate } from "@/components/comms/CommsFeed";
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { assignThreadToAgent, sendMessage } from "@/lib/comms-hooks";
+import { queueMessage } from "@/lib/outbox-hooks";
 import type { DebtVergeCommunication, CommsChannel, SendMessagePayload } from "@/lib/types";
 import type { QueueItem } from "@/components/comms/comms-shared";
 import {
@@ -323,7 +324,7 @@ const ACTION_CARD_ICONS: Record<string, React.ReactNode> = {
 function ThreadComposer({
   item, agentId, agentName, onSent,
 }: { item: QueueItem; agentId: string; agentName: string; onSent: () => void }) {
-  const [channel, setChannel] = useState<CommsChannel>("email");
+  const [channel, setChannel] = useState<CommsChannel>(item.channel === "sms" || item.channel === "whatsapp" ? item.channel : "email");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
@@ -380,7 +381,12 @@ function ThreadComposer({
         },
         status: "delivered",
       };
-      await sendMessage(payload);
+      if (channel === "email" || channel === "sms" || channel === "whatsapp") {
+        // real send path: the outbox delivers it and the conversation shows its true status
+        await queueMessage(item.caseId, channel, subject, body.trim(), item.threadId, agentName);
+      } else {
+        await sendMessage(payload);
+      }
       setSubject("");
       setBody("");
       setAttachments([]);

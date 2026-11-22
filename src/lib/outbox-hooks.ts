@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 export interface OutboxMessage {
   id: string;
   case_id: string;
-  channel: "email" | "sms";
+  channel: "email" | "sms" | "whatsapp";
   to_address: string;
   subject: string | null;
   body: string;
@@ -33,8 +33,9 @@ export function useOutbox(caseId: string | null) {
   return { messages, loading, error, reload };
 }
 
-export async function queueMessage(caseId: string, channel: "email" | "sms", subject: string, body: string) {
-  const { error } = await supabase.rpc("dv_queue_message", { p_case: caseId, p_channel: channel, p_subject: channel === "email" ? subject : null, p_body: body });
+/** Queue an email/SMS. It shows in the case conversation straight away (queued) and updates when the provider sends it. */
+export async function queueMessage(caseId: string, channel: "email" | "sms" | "whatsapp", subject: string, body: string, threadId?: string, agentName?: string) {
+  const { error } = await supabase.rpc("dv_queue_message", { p_case: caseId, p_channel: channel, p_subject: channel === "email" ? subject : null, p_body: body, p_thread: threadId ?? null, p_agent: agentName ?? null });
   if (error) throw new Error(error.message);
 }
 

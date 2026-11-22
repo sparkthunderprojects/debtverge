@@ -64,7 +64,7 @@ import { TeamScreen, AssigneeControl } from "@/components/TeamScreen";
 import { useAuth } from "@/lib/auth";
 import { DiaryTab } from "./debt/DiaryTab";
 import { DocumentsTab } from "./debt/DocumentsTab";
-import { MessagesTab } from "./debt/MessagesTab";
+import { QueuedMessagesStrip } from "./debt/QueuedMessagesStrip";
 import { DistributionPanel } from "./debt/DistributionPanel";
 import { useMyProducts, allowedViewModes } from "@/lib/product-hooks";
 import { CaseNextAction } from "@/components/debt/CaseNextAction";
@@ -303,8 +303,7 @@ export function DebtVergeWorkspace({
   const tabsToShow: Tab[] = baseTabs.includes("messages")
     ? Array.from(new Set(baseTabs.map((t) => (t === "messages" ? ("communications" as Tab) : t))))
     : baseTabs;
-  const [commsView, setCommsView] = useState<"conversations" | "send">("conversations");
-  useEffect(() => { if (activeTab === "messages") { setCommsView("send"); setActiveTab("communications" as Tab); } }, [activeTab, setActiveTab]);
+  useEffect(() => { if (activeTab === "messages") setActiveTab("communications" as Tab); }, [activeTab, setActiveTab]);
 
   useEffect(() => {
     if (standaloneAppName === "DraftVerge" && !DRAFT_VISIBLE_TABS.includes(activeTab)) {
@@ -835,23 +834,15 @@ export function DebtVergeWorkspace({
           ) : activeTab === "breathing_space" ? (
             <BreathingSpaceTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "communications" ? (
-            <div className="flex h-full min-h-0 flex-col">
-              <div className="mb-3 inline-flex w-fit rounded-lg border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-800">
-                {([["conversations", "Conversations"], ["send", "Send email / SMS"]] as const).map(([v, label]) => (
-                  <button key={v} onClick={() => setCommsView(v)} className={`rounded-md px-3 py-1.5 font-semibold ${commsView === v ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300"}`}>{label}</button>
-                ))}
-              </div>
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              <QueuedMessagesStrip caseId={activeCaseId ?? null} />
               <div className="min-h-0 flex-1">
-                {commsView === "send" ? (
-                  <MessagesTab caseId={activeCaseId} caseData={selectedCase} />
-                ) : (
-                  <TeamCommsWorkspace
-                    agentId="advisor"
-                    agentName="Sarah Jenkins"
-                    selectedCaseId={activeCaseId ?? null}
-                    onViewCaseRecord={() => setActiveTab("dashboard")}
-                  />
-                )}
+                <TeamCommsWorkspace
+                  agentId="advisor"
+                  agentName="Sarah Jenkins"
+                  selectedCaseId={activeCaseId ?? null}
+                  onViewCaseRecord={() => setActiveTab("dashboard")}
+                />
               </div>
             </div>
           ) : (

@@ -9384,3 +9384,105 @@ RETURNS int LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
   WHERE extract(isodow FROM g) < 6 AND NOT EXISTS (SELECT 1 FROM dv_bank_holidays h WHERE h.day = g::date);
 $$;
 CREATE POLICY dv_rate_limits_no_access ON public.dv_rate_limits FOR ALL TO authenticated, anon USING (false) WITH CHECK (false);
+-- One conversation per case: every email / SMS / WhatsApp the system sends is mirrored into debtverge_communications,
+-- and its status follows the outbox (queued -> delivered / failed; cancelled hides it).
+ALTER TABLE public.comms_outbox ADD COLUMN IF NOT EXISTS thread_id uuid, ADD COLUMN IF NOT EXISTS agent_name text;
+ALTER TABLE public.debtverge_communications ADD COLUMN IF NOT EXISTS outbox_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS debtverge_comms_outbox_id_uq ON public.debtverge_communications (outbox_id) WHERE outbox_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.dv_mirror_outbox() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $function$
+DECLARE v_thread uuid; v_name text; v_status text;
+BEGIN
+  v_status := CASE NEW.status WHEN 'sent' THEN 'delivered' WHEN 'failed' THEN 'failed' ELSE 'queued' END;
+  IF TG_OP = 'INSERT' THEN
+    v_thread := coalesce(NEW.thread_id,
+      (SELECT thread_id FROM debtverge_communications WHERE case_id = NEW.case_id AND deleted_at IS NULL AND thread_id IS NOT NULL ORDER BY created_at DESC LIMIT 1),
+      md5(NEW.case_id::text)::uuid);
+    SELECT debtor_name INTO v_name FROM debt_cases WHERE id = NEW.case_id;
+    INSERT INTO debtverge_communications (case_id, thread_id, channel, direction, sender_name, sender_type, recipient_name, recipient_email_or_phone,
+        agent_name, subject, body, status, matched_automatically, outbox_id, created_at)
+    VALUES (NEW.case_id, v_thread, NEW.channel, 'outbound',
+        CASE WHEN NEW.trigger = 'manual' THEN coalesce(NEW.agent_name, 'Adviser') ELSE 'DebtVerge (automatic)' END,
+        CASE WHEN NEW.trigger = 'manual' THEN 'agent' ELSE 'system' END,
+        coalesce(v_name, ''), NEW.to_address, NEW.agent_name, NEW.subject, NEW.body, v_status, false, NEW.id, NEW.created_at)
+    ON CONFLICT (outbox_id) WHERE outbox_id IS NOT NULL DO NOTHING;
+  ELSE
+    IF NEW.status = 'cancelled' OR NEW.deleted_at IS NOT NULL THEN
+      UPDATE debtverge_communications SET deleted_at = now() WHERE outbox_id = NEW.id AND deleted_at IS NULL;
+    ELSE
+      UPDATE debtverge_communications SET status = v_status, updated_at = now() WHERE outbox_id = NEW.id AND status <> v_status;
+    END IF;
+  END IF;
+  RETURN NEW;
+END $function$;
+REVOKE ALL ON FUNCTION public.dv_mirror_outbox() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_mirror_outbox ON public.comms_outbox;
+CREATE TRIGGER trg_mirror_outbox AFTER INSERT OR UPDATE OF status, deleted_at ON public.comms_outbox FOR EACH ROW EXECUTE FUNCTION public.dv_mirror_outbox();
+-- WhatsApp in the conversation, 24-hour customer-service window enforced, and inbound SMS/WhatsApp matched to cases.
+ALTER TABLE public.comms_outbox DROP CONSTRAINT IF EXISTS comms_outbox_channel_check;
+ALTER TABLE public.comms_outbox ADD CONSTRAINT comms_outbox_channel_check CHECK (channel IN ('email','sms','whatsapp'));
+ALTER TABLE public.debtverge_communications ADD COLUMN IF NOT EXISTS provider_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS debtverge_comms_provider_id_uq ON public.debtverge_communications (provider_id) WHERE provider_id IS NOT NULL;
+ALTER TABLE public.debtverge_unassigned_messages ADD COLUMN IF NOT EXISTS provider_id text;
+CREATE UNIQUE INDEX IF NOT EXISTS debtverge_unassigned_provider_id_uq ON public.debtverge_unassigned_messages (provider_id) WHERE provider_id IS NOT NULL;
+-- Clients never create inbound messages; only the inbound webhook (service role) does.
+DROP POLICY IF EXISTS insert_org_debtverge_unassigned_messages ON public.debtverge_unassigned_messages;
+
+DROP FUNCTION IF EXISTS public.dv_queue_message(uuid, text, text, text);
+DROP FUNCTION IF EXISTS public.dv_queue_message(uuid, text, text, text, uuid, text);
+CREATE OR REPLACE FUNCTION public.dv_queue_message(p_case uuid, p_channel text, p_subject text, p_body text, p_thread uuid DEFAULT NULL, p_agent text DEFAULT NULL)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
+DECLARE c debt_cases; addr text; oid uuid; v_thread uuid;
+BEGIN
+  SELECT * INTO c FROM debt_cases WHERE id = p_case AND deleted_at IS NULL;
+  IF c.id IS NULL OR NOT dv_can_edit_case(p_case) THEN RAISE EXCEPTION 'not allowed' USING ERRCODE = '42501'; END IF;
+  IF p_channel NOT IN ('email','sms','whatsapp') THEN RAISE EXCEPTION 'unsupported channel' USING ERRCODE = '22023'; END IF;
+  IF p_body IS NULL OR btrim(p_body) = '' THEN RAISE EXCEPTION 'message is empty' USING ERRCODE = '22023'; END IF;
+  IF p_channel = 'whatsapp' AND NOT EXISTS (
+       SELECT 1 FROM debtverge_communications WHERE case_id = p_case AND channel = 'whatsapp' AND direction = 'inbound'
+         AND deleted_at IS NULL AND created_at > now() - interval '24 hours') THEN
+    RAISE EXCEPTION 'WhatsApp can only be used within 24 hours of the customer''s last WhatsApp message. Use SMS or email to start the conversation.' USING ERRCODE = '22023';
+  END IF;
+  IF p_thread IS NOT NULL THEN
+    SELECT thread_id INTO v_thread FROM debtverge_communications WHERE case_id = p_case AND thread_id = p_thread LIMIT 1;
+  END IF;
+  IF p_channel IN ('sms','whatsapp') THEN SELECT mobile_phone INTO addr FROM debt_customer_profiles WHERE case_id = p_case;
+  ELSE SELECT primary_email INTO addr FROM debt_customer_profiles WHERE case_id = p_case; END IF;
+  IF addr IS NULL OR btrim(addr) = '' THEN RAISE EXCEPTION 'no % contact on this case', p_channel; END IF;
+  INSERT INTO comms_outbox (organization_id, case_id, channel, to_address, subject, body, trigger, thread_id, agent_name)
+  VALUES (c.organization_id, p_case, p_channel, addr, CASE WHEN p_channel = 'email' THEN p_subject END, p_body, 'manual', v_thread, left(p_agent, 120)) RETURNING id INTO oid;
+  RETURN oid;
+END $function$;
+REVOKE ALL ON FUNCTION public.dv_queue_message(uuid,text,text,text,uuid,text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.dv_queue_message(uuid,text,text,text,uuid,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.dv_record_inbound(p_channel text, p_from text, p_name text, p_body text, p_provider_id text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp' AS $function$
+DECLARE d text; v_case uuid; n int; v_name text; v_thread uuid;
+BEGIN
+  IF p_channel NOT IN ('sms','whatsapp') THEN RAISE EXCEPTION 'unsupported channel' USING ERRCODE='22023'; END IF;
+  IF p_provider_id IS NOT NULL AND (EXISTS (SELECT 1 FROM debtverge_communications WHERE provider_id = p_provider_id)
+        OR EXISTS (SELECT 1 FROM debtverge_unassigned_messages WHERE provider_id = p_provider_id)) THEN
+    RETURN jsonb_build_object('status','duplicate');
+  END IF;
+  d := right(regexp_replace(coalesce(p_from,''), '\D', '', 'g'), 10);
+  IF length(d) >= 9 THEN
+    SELECT count(DISTINCT p.case_id), min(p.case_id::text)::uuid INTO n, v_case
+      FROM debt_customer_profiles p JOIN debt_cases c ON c.id = p.case_id AND c.deleted_at IS NULL
+     WHERE right(regexp_replace(coalesce(p.mobile_phone,''), '\D','','g'), 10) = d
+        OR right(regexp_replace(coalesce(p.landline_phone,''), '\D','','g'), 10) = d
+        OR right(regexp_replace(coalesce(p.work_phone,''), '\D','','g'), 10) = d;
+  ELSE n := 0; END IF;
+  IF n = 1 THEN
+    SELECT debtor_name INTO v_name FROM debt_cases WHERE id = v_case;
+    v_thread := coalesce((SELECT thread_id FROM debtverge_communications WHERE case_id = v_case AND deleted_at IS NULL AND thread_id IS NOT NULL ORDER BY created_at DESC LIMIT 1), md5(v_case::text)::uuid);
+    INSERT INTO debtverge_communications (case_id, thread_id, channel, direction, sender_name, sender_email_or_phone, sender_type, recipient_name, body, status, matched_automatically, provider_id)
+    VALUES (v_case, v_thread, p_channel, 'inbound', coalesce(nullif(p_name,''), v_name, ''), left(p_from, 60), 'client', 'DebtVerge Team', left(p_body, 5000), 'delivered', true, p_provider_id);
+    RETURN jsonb_build_object('status','matched');
+  END IF;
+  INSERT INTO debtverge_unassigned_messages (channel, sender_name, sender_email_or_phone, body, provider_id)
+  VALUES (p_channel, coalesce(nullif(p_name,''), ''), left(p_from, 60), left(p_body, 5000), p_provider_id);
+  RETURN jsonb_build_object('status', CASE WHEN n > 1 THEN 'ambiguous' ELSE 'unassigned' END);
+END $function$;
+REVOKE ALL ON FUNCTION public.dv_record_inbound(text,text,text,text,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.dv_record_inbound(text,text,text,text,text) TO service_role;
