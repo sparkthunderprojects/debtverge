@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Bell, ChevronDown, LogOut, Landmark, Moon, Sun } from "lucide-react";
+import { Banknote, Bell, ChevronDown, LogOut, Landmark, Moon, Sun, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +9,8 @@ import { VoipCallButton } from "@/components/stormcall/VoipCallButton";
 export interface DebtVergeNavProps {
   appName: string;
   onOpenCase?: (caseId: string) => void;
+  screen?: "clients" | "payments" | null;
+  onOpenScreen?: (screen: "clients" | "payments") => void;
   voipContext?: {
     applicationSource: string;
     customerName?: string | null;
@@ -19,7 +21,7 @@ export interface DebtVergeNavProps {
   };
 }
 
-export function DebtVergeNav({ appName, voipContext, onOpenCase }: DebtVergeNavProps) {
+export function DebtVergeNav({ appName, voipContext, onOpenCase, screen, onOpenScreen }: DebtVergeNavProps) {
   const { user, signOut } = useAuth();
   const { theme, toggle } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -70,6 +72,17 @@ export function DebtVergeNav({ appName, voipContext, onOpenCase }: DebtVergeNavP
       </div>
 
       {onOpenCase && <ClientSearch onOpenCase={onOpenCase} />}
+
+      {onOpenScreen && (
+        <div className="flex shrink-0 items-center gap-1">
+          {([["clients", "Clients", Users], ["payments", "Payment Suite", Banknote]] as const).map(([key, label, Icon]) => (
+            <button key={key} onClick={() => onOpenScreen(key)} title={label} aria-label={label}
+              className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors ${screen === key ? "bg-emerald-600 text-white" : dark ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-100"}`}>
+              <Icon className="h-4 w-4" /><span className="hidden lg:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-1">
         {voipContext && (

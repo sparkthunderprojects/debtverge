@@ -64,6 +64,8 @@ import { TeamScreen, AssigneeControl } from "@/components/TeamScreen";
 import { useAuth } from "@/lib/auth";
 import { DiaryTab } from "./debt/DiaryTab";
 import { NotesTab } from "./debt/NotesTab";
+import { ClientBookScreen } from "./ClientBookScreen";
+import { PaymentSuiteScreen } from "./PaymentSuiteScreen";
 import { DocumentsTab } from "./debt/DocumentsTab";
 import { QueuedMessagesStrip } from "./debt/QueuedMessagesStrip";
 import { DistributionPanel } from "./debt/DistributionPanel";
@@ -256,6 +258,7 @@ export function DebtVergeWorkspace({
   const [showHandOver, setShowHandOver] = useState(false);
   const [showSuitability, setShowSuitability] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
+  const [extraScreen, setExtraScreen] = useState<"clients" | "payments" | null>(null);
   const [listOpen, setListOpen] = useState(() => { try { return localStorage.getItem("dv_case_list_open") !== "0"; } catch { return true; } });
   const toggleList = () => setListOpen((o) => { const n = !o; try { localStorage.setItem("dv_case_list_open", n ? "1" : "0"); } catch { /* ignore */ } return n; });
   const { dvRole, canViewAs, viewAs, setViewAs, realDvRole } = useAuth();
@@ -396,7 +399,9 @@ export function DebtVergeWorkspace({
     <div className="flex h-full flex-col overflow-hidden">
       <DebtVergeNav
         appName={standaloneAppName}
-        onOpenCase={(id) => { setShowTeam(false); setShowNewCase(false); setActiveCaseId(id); }}
+        onOpenCase={(id) => { setShowTeam(false); setExtraScreen(null); setShowNewCase(false); setActiveCaseId(id); }}
+        screen={selectedCase ? null : extraScreen}
+        onOpenScreen={(sc) => { setActiveCaseId(null); setShowTeam(false); setShowNewCase(false); setExtraScreen(sc); }}
         voipContext={{
           applicationSource: standaloneAppName,
           customerName: selectedCase?.debtor_name ?? null,
@@ -410,8 +415,8 @@ export function DebtVergeWorkspace({
       {!listOpen && (
         <div className="panel flex w-12 shrink-0 flex-col items-center gap-2 py-3">
           <button onClick={toggleList} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Show case list" aria-label="Show case list"><PanelLeftOpen className="h-4 w-4" /></button>
-          <button onClick={() => { setActiveCaseId(null); setShowTeam(false); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Home" aria-label="Home"><LayoutDashboard className="h-4 w-4" /></button>
-          {dvRole !== "advisor" && <button onClick={() => { setActiveCaseId(null); setShowTeam(true); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Team" aria-label="Team"><Users className="h-4 w-4" /></button>}
+          <button onClick={() => { setActiveCaseId(null); setShowTeam(false); setExtraScreen(null); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Home" aria-label="Home"><LayoutDashboard className="h-4 w-4" /></button>
+          {dvRole !== "advisor" && <button onClick={() => { setActiveCaseId(null); setShowTeam(true); setExtraScreen(null); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Team" aria-label="Team"><Users className="h-4 w-4" /></button>}
           <button onClick={() => setShowNewCase(true)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700" title="New Case" aria-label="New case"><Plus className="h-4 w-4" /></button>
         </div>
       )}
@@ -419,12 +424,12 @@ export function DebtVergeWorkspace({
         <div className="panel flex min-h-0 flex-1 flex-col p-3">
           <div className="mb-3 flex items-center justify-between">
             <button onClick={toggleList} className="mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700" title="Hide case list" aria-label="Hide case list"><PanelLeftClose className="h-4 w-4" /></button>
-            <button onClick={() => { setActiveCaseId(null); setShowTeam(false); }} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold transition-colors ${!selectedCase && !showTeam ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"}`} title="Home">
+            <button onClick={() => { setActiveCaseId(null); setShowTeam(false); setExtraScreen(null); }} className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-bold transition-colors ${!selectedCase && !showTeam ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-700"}`} title="Home">
               <LayoutDashboard className="h-4 w-4" /> Home
             </button>
             <div className="flex items-center gap-1.5">
               {dvRole !== "advisor" && (
-                <button onClick={() => { setActiveCaseId(null); setShowTeam(true); }} className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${showTeam && !selectedCase ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`} title="Team">
+                <button onClick={() => { setActiveCaseId(null); setShowTeam(true); setExtraScreen(null); }} className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${showTeam && !selectedCase ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"}`} title="Team">
                   <Users className="h-4 w-4" />
                 </button>
               )}
@@ -443,7 +448,7 @@ export function DebtVergeWorkspace({
                 {([["advisor", "Advisor"], ["team_manager", "Manager"], ["operations_manager", "Ops"]] as const).map(([r, label]) => {
                   const active = (viewAs ?? (realDvRole === "admin" ? "advisor" : realDvRole)) === r;
                   return (
-                    <button key={r} onClick={() => { setViewAs(r); setShowTeam(false); }} className={`flex-1 rounded-md px-1.5 py-1 text-[11px] font-bold transition-all ${active ? "bg-amber-500 text-white shadow-sm" : "text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-500/20"}`}>{label}</button>
+                    <button key={r} onClick={() => { setViewAs(r); setShowTeam(false); setExtraScreen(null); }} className={`flex-1 rounded-md px-1.5 py-1 text-[11px] font-bold transition-all ${active ? "bg-amber-500 text-white shadow-sm" : "text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-500/20"}`}>{label}</button>
                   );
                 })}
               </div>
@@ -542,7 +547,7 @@ export function DebtVergeWorkspace({
                 return (
                   <button
                     key={c.id}
-                    onClick={() => { setShowTeam(false); setActiveCaseId(c.id); }}
+                    onClick={() => { setShowTeam(false); setExtraScreen(null); setActiveCaseId(c.id); }}
                     className={`group w-full rounded-xl border p-2.5 text-left transition-all ${
                       isActive
                         ? isIVACase
@@ -732,7 +737,7 @@ export function DebtVergeWorkspace({
           <>
           {error && <div className="mb-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">{error}</div>}
           {!selectedCase && !showNewCase ? (
-            showTeam ? <TeamScreen onOpenCase={(id) => { setShowTeam(false); setActiveCaseId(id); }} /> : <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
+            extraScreen === "clients" ? <ClientBookScreen onOpenCase={(id) => { setExtraScreen(null); setActiveCaseId(id); }} /> : extraScreen === "payments" ? <PaymentSuiteScreen onOpenCase={(id, tab) => { setExtraScreen(null); setActiveCaseId(id); if (tab) setActiveTab(tab as Tab); }} /> : showTeam ? <TeamScreen onOpenCase={(id) => { setShowTeam(false); setExtraScreen(null); setActiveCaseId(id); }} /> : <HomeScreen onOpenCase={(id) => setActiveCaseId(id)} onNewCase={() => setShowNewCase(true)} />
           ) : activeTab === "dashboard" ? (
             <DashboardTab caseId={activeCaseId} caseData={selectedCase} onTabChange={setActiveTab} appName={standaloneAppName} />
           ) : activeTab === "profile" ? (
