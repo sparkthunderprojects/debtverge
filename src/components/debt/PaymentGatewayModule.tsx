@@ -401,7 +401,7 @@ function GatewayConfigForm({ orgId, editing, onClose, onSaved }: {
         <Field label="Merchant ID (optional)"><input value={merchantId} onChange={(e) => setMerchantId(e.target.value)} className="input text-sm" placeholder="acct_12345" /></Field>
         <Field label="Secret Reference Name">
           <input value={secretRef} onChange={(e) => setSecretRef(e.target.value)} className="input text-sm font-mono" placeholder="STRIPE_SECRET_KEY_ORG_123" required />
-          <p className="mt-1 text-[10px] text-slate-400">The name of the edge function secret that holds your API key. The actual key is stored securely in Supabase secrets, never in the database.</p>
+          <p className="mt-1 text-[10px] text-slate-400">The name of the secure setting that holds your API key. The key itself is stored encrypted outside the database and is never shown here.</p>
         </Field>
         <Field label="Webhook Secret Reference (optional)">
           <input value={webhookSecretRef} onChange={(e) => setWebhookSecretRef(e.target.value)} className="input text-sm font-mono" placeholder="STRIPE_WEBHOOK_SECRET_ORG_123" />
