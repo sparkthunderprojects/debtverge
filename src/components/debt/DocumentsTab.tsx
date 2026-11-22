@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from "react";
-import { FileText, Paperclip, Printer, Save, Trash2, Download, Copy, BookmarkPlus } from "lucide-react";
+import { FileText, Paperclip, Printer, Save, Trash2, Download, Copy, BookmarkPlus, PenLine, Link2, X } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useDebtCreditors } from "../../lib/debt-hooks";
 import { MERGE_FIELDS, mergeValues, renderTemplate, useTemplates, useCaseDocuments, saveLetter, uploadCaseFile, openCaseFile, deleteCaseDocument, saveAsTemplate, printLetter, useFirmName } from "../../lib/document-hooks";
 import { supabase } from "../../lib/supabase";
 import type { DebtCase } from "../../lib/types";
 import { StatementPanel } from "./StatementPanel";
+import { useSigningRequests, createSigningRequest, cancelSigningRequest, signUrl } from "../../lib/esign-hooks";
+import { queueMessage } from "../../lib/outbox-hooks";
 
 export function DocumentsTab({ caseId, caseData }: { caseId: string | null; caseData: DebtCase | null }) {
   const { user, dvRole } = useAuth();
@@ -19,6 +21,7 @@ export function DocumentsTab({ caseId, caseData }: { caseId: string | null; case
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const { requests: signReqs, reload: reloadSign } = useSigningRequests(caseId);
 
   const tpl = templates.find((t) => t.id === tplId) ?? null;
   const creditor = creditors.find((c) => c.id === creditorId) ?? null;
@@ -81,6 +84,7 @@ export function DocumentsTab({ caseId, caseData }: { caseId: string | null; case
               <button onClick={save} disabled={needsCreditor} className="btn btn-primary text-sm disabled:opacity-40"><Save className="h-4 w-4" /> Save to case</button>
               <button onClick={() => printLetter(outSubject, outBody)} className="btn btn-secondary text-sm"><Printer className="h-4 w-4" /> Print / PDF</button>
               <button onClick={() => navigator.clipboard.writeText(outBody).then(() => setMsg("Copied."))} className="btn btn-secondary text-sm"><Copy className="h-4 w-4" /> Copy</button>
+              <button onClick={() => run(async () => { const tok = await createSigningRequest(caseId!, outSubject || tpl.name, outBody); await navigator.clipboard.writeText(signUrl(tok)).catch(() => {}); await reloadSign(); }, "Signing link created and copied. Send it to the client from the list below.")} disabled={needsCreditor || unfilled.length > 0} className="btn btn-secondary text-sm disabled:opacity-40"><PenLine className="h-4 w-4" /> Send for e-signature</button>
               {isManager && caseData.organization_id && (
                 <button onClick={() => run(async () => { const { data: o } = await supabase.rpc("dv_my_org"); await saveAsTemplate((o as string) ?? caseData.organization_id!, { name: (tpl.name + " (edited)").slice(0, 80), category: tpl.category, audience: tpl.audience, subject, body }); }, "Saved as a firm template.")} className="btn btn-secondary text-sm"><BookmarkPlus className="h-4 w-4" /> Save as firm template</button>
               )}
@@ -89,6 +93,28 @@ export function DocumentsTab({ caseId, caseData }: { caseId: string | null; case
           </>
         )}
       </div>
+
+      {signReqs.length > 0 && (
+        <div className="panel space-y-2 p-4">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">E-signature requests</h3>
+          {signReqs.map((r) => (
+            <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-100 p-2.5 dark:border-slate-700/50">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{r.title}</p>
+                <p className="text-[11px] text-slate-400">{r.status === "signed" ? `Signed by ${r.signer_name} on ${new Date(r.signed_at!).toLocaleString("en-GB")}` : r.status === "pending" ? `Waiting for client · expires ${new Date(r.expires_at).toLocaleDateString("en-GB")}` : "Cancelled"}</p>
+              </div>
+              {r.status === "pending" && (
+                <>
+                  <button onClick={() => navigator.clipboard.writeText(signUrl(r.token)).then(() => setMsg("Link copied."))} className="rounded p-1.5 text-slate-400 hover:text-emerald-600" title="Copy link"><Link2 className="h-4 w-4" /></button>
+                  <button onClick={() => run(() => queueMessage(caseId!, "sms", "Please sign", `Please sign "${r.title}" here: ${signUrl(r.token)}`).then(() => undefined), "Text queued.")} className="btn btn-secondary text-xs">Text link</button>
+                  <button onClick={() => run(() => queueMessage(caseId!, "email", `Please sign: ${r.title}`, `Please read and sign "${r.title}" using this secure link:\n\n${signUrl(r.token)}`).then(() => undefined), "Email queued.")} className="btn btn-secondary text-xs">Email link</button>
+                  <button onClick={() => run(async () => { await cancelSigningRequest(r.id); await reloadSign(); }, "Cancelled.")} className="rounded p-1.5 text-slate-300 hover:text-rose-500" title="Cancel"><X className="h-4 w-4" /></button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="panel space-y-2 p-4">
         <div className="flex items-center justify-between">

@@ -2,6 +2,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Login } from "@/components/Login";
 import { DebtVerge } from "@/components/DebtVerge";
 import { ClientPortalPage } from "@/components/ClientPortalPage";
+import { SignPage } from "@/components/SignPage";
 import { DebtVergeSignupWizard } from "@/components/DebtVergeSignupWizard";
 import { Spinner } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -28,6 +29,11 @@ function AppContent() {
   const payMatch = window.location.pathname.match(/^\/pay\/([A-Za-z0-9]+)\/?$/);
   if (payMatch) {
     return <ErrorBoundary><ClientPortalPage token={payMatch[1]} /></ErrorBoundary>;
+  }
+
+  const signMatch = window.location.pathname.match(/^\/sign\/([A-Za-z0-9]+)\/?$/);
+  if (signMatch) {
+    return <ErrorBoundary><SignPage token={signMatch[1]} /></ErrorBoundary>;
   }
 
   if (loading) {
