@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import {
-  AI_CHECK_MAP, CHECKLIST, PRIORITY_LABEL, REVIEW_OUTCOME_LABEL, REVIEW_STATUS_LABEL, assignReview, claimReview, declineReview, decideReview, escalateReview, extendReview, fetchPeople, fmtDate, fmtWhen,
+  AI_CHECK_MAP, CHECKLIST, PRIORITY_LABEL, fetchReviewScript, type ScriptPoint, REVIEW_OUTCOME_LABEL, REVIEW_STATUS_LABEL, assignReview, claimReview, declineReview, decideReview, escalateReview, extendReview, fetchPeople, fmtDate, fmtWhen,
   reassignReview, startReview, submitReview, type AiDraft, type Person, type ReviewFull,
 } from "@/lib/call-hooks";
 
@@ -9,11 +9,11 @@ const inDays = (n: number) => new Date(Date.now() + n * 86400000).toISOString().
 const SEV: Record<string, string> = { minor: "Minor", major: "Major", critical: "Critical" };
 
 interface AiGrade { items: Record<string, { suggested: string; evidence: string }>; outcome: string | null; reason: string | null }
-function aiGrade(drafts: AiDraft[]): AiGrade | null {
+function aiGrade(drafts: AiDraft[], keys: string[]): AiGrade | null {
   const a = drafts.find((d) => d.kind === "analysis" && d.payload && d.status !== "rejected"); if (!a?.payload) return null;
   try {
     const j = JSON.parse(a.payload); const items: AiGrade["items"] = {};
-    for (const x of (j.checklist_suggestions ?? []) as { item: string; suggested: string; evidence: string }[]) { const k = AI_CHECK_MAP[x.item] ?? x.item; if (CHECKLIST.some((c) => c.key === k)) items[k] = { suggested: x.suggested, evidence: x.evidence }; }
+    for (const x of (j.checklist_suggestions ?? []) as { item: string; suggested: string; evidence: string }[]) { const k = AI_CHECK_MAP[x.item] ?? x.item; if (keys.includes(k)) items[k] = { suggested: x.suggested, evidence: x.evidence }; }
     return { items, outcome: j.suggested_outcome ?? null, reason: j.outcome_reason ?? null };
   } catch { return null; }
 }
@@ -23,14 +23,14 @@ const agreement = (g: AiGrade | null, answers: Record<string, string> | null) =>
   return total ? { same, total } : null;
 };
 
-function Form({ review, drafts, onDone }: { review: ReviewFull; drafts: AiDraft[]; onDone: () => void }) {
+function Form({ review, drafts, points, onDone }: { review: ReviewFull; drafts: AiDraft[]; points: ScriptPoint[]; onDone: () => void }) {
   const [answers, setAnswers] = useState<Record<string, string>>(review.checklist ?? {});
   const [outcome, setOutcome] = useState(review.outcome ?? "compliant");
   const [issues, setIssues] = useState<{ severity: string; text: string }[]>(review.issues ?? []);
   const [actions, setActions] = useState<{ text: string }[]>(review.corrective_actions ?? []);
   const [comments, setComments] = useState(review.comments ?? "");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
-  const grade = aiGrade(drafts); const hint = grade?.items ?? {};
+  const grade = aiGrade(drafts, points.map((p) => p.key)); const hint = grade?.items ?? {};
   const useAi = () => { const next = { ...answers }; for (const [k, v] of Object.entries(hint)) if (["yes", "no", "na"].includes(v.suggested)) next[k] = v.suggested; setAnswers(next); if (grade?.outcome) setOutcome(grade.outcome); };
   const submit = async () => { setBusy(true); setErr(null); try { await submitReview(review.id, outcome, answers, issues.filter((i) => i.text.trim()), actions.filter((a) => a.text.trim()), comments); onDone(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
@@ -43,9 +43,9 @@ function Form({ review, drafts, onDone }: { review: ReviewFull; drafts: AiDraft[
         </div>
       ) : <p className="text-xs text-slate-500">No AI grading is available for this call, so answer each question from the recording.</p>}
       <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-        {CHECKLIST.map((c) => (
+        {points.map((c) => (
           <li key={c.key} className="px-3 py-2">
-            <div className="flex flex-wrap items-center gap-3"><span className="min-w-0 flex-1 text-sm">{c.label}</span>
+            <div className="flex flex-wrap items-center gap-3"><span className="min-w-0 flex-1 text-sm">{c.label}{c.guidance && <span className="block text-[11px] text-slate-500">{c.guidance}</span>}</span>
               {(["yes", "no", "na"] as const).map((v) => <label key={v} className="flex items-center gap-1 text-xs"><input type="radio" name={c.key} checked={answers[c.key] === v} onChange={() => setAnswers({ ...answers, [c.key]: v })} />{v === "na" ? "N/A" : v === "yes" ? "Yes" : "No"}</label>)}</div>
             {hint[c.key] && <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">AI says {hint[c.key].suggested.toUpperCase()}{hint[c.key].evidence ? `: ${hint[c.key].evidence}` : ""}{answers[c.key] && hint[c.key].suggested !== "unclear" && answers[c.key] !== hint[c.key].suggested && <b className="ml-1 text-amber-700"> · you changed this</b>}</p>}
           </li>))}
@@ -71,6 +71,8 @@ export function ReviewPanel({ callId, review, drafts, myId, onChanged }: { callI
   const [who, setWho] = useState(""); const [prio, setPrio] = useState("normal"); const [due, setDue] = useState(inDays(7)); const [note, setNote] = useState("");
   const [mode, setMode] = useState<"" | "escalate" | "reassign" | "extend" | "decline" | "reject">("");
   useEffect(() => { fetchPeople().then(setPeople).catch(() => undefined); }, []);
+  const [points, setPoints] = useState<ScriptPoint[] | null>(null);
+  useEffect(() => { if (review?.id) fetchReviewScript(review.id).then(setPoints).catch(() => setPoints(CHECKLIST)); }, [review?.id, review?.status]);
   const run = async (f: () => Promise<unknown>) => { setBusy(true); setErr(null); try { await f(); setMode(""); setNote(""); onChanged(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   const mgrs = people.filter((p) => p.is_manager);
 
@@ -101,18 +103,18 @@ export function ReviewPanel({ callId, review, drafts, myId, onChanged }: { callI
 
       {s === "assigned" && !review.reviewer_id && <button disabled={busy} className="btn btn-primary" onClick={() => run(() => claimReview(review.id))}>Take this review</button>}
       {s === "assigned" && mine && <div className="flex gap-2"><button disabled={busy} className="btn btn-primary" onClick={() => run(() => startReview(review.id))}>Start review</button><button className="btn btn-secondary" onClick={() => setMode("decline")}>Decline it</button></div>}
-      {["in_review", "rejected"].includes(s) && mine && <Form review={review} drafts={drafts} onDone={onChanged} />}
+      {["in_review", "rejected"].includes(s) && mine && (points ? <Form review={review} drafts={drafts} points={points} onDone={onChanged} /> : <p className="text-sm text-slate-500">Loading the call script…</p>)}
       {["in_review", "rejected"].includes(s) && !mine && <p className="text-sm text-slate-500">{review.reviewer ?? "Someone else"} is working on this review.</p>}
       {s === "rejected" && <p className="text-xs text-amber-700">Sent back for changes. Update the answers and submit again.</p>}
 
       {["pending_approval", "approved", "escalated"].includes(s) && (
         <div className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700">
           <p className="font-bold">{REVIEW_OUTCOME_LABEL[review.outcome ?? ""] ?? review.outcome} {review.score != null && <span className="font-normal text-slate-500">· score {review.score}%</span>}</p>
-          <ul className="mt-2 space-y-0.5 text-xs">{CHECKLIST.filter((c) => review.checklist?.[c.key]).map((c) => <li key={c.key} className="flex gap-2"><span className={`w-8 font-bold ${review.checklist![c.key] === "no" ? "text-rose-600" : review.checklist![c.key] === "yes" ? "text-emerald-600" : "text-slate-400"}`}>{review.checklist![c.key].toUpperCase()}</span>{c.label}</li>)}</ul>
+          <ul className="mt-2 space-y-0.5 text-xs">{(points ?? CHECKLIST).filter((c) => review.checklist?.[c.key]).map((c) => <li key={c.key} className="flex gap-2"><span className={`w-8 font-bold ${review.checklist![c.key] === "no" ? "text-rose-600" : review.checklist![c.key] === "yes" ? "text-emerald-600" : "text-slate-400"}`}>{review.checklist![c.key].toUpperCase()}</span>{c.label}</li>)}</ul>
           {(review.issues?.length ?? 0) > 0 && <div className="mt-2"><p className="text-xs font-bold">Issues</p><ul className="text-xs">{review.issues!.map((i, k) => <li key={k}>{SEV[i.severity] ?? i.severity}: {i.text}</li>)}</ul></div>}
           {(review.corrective_actions?.length ?? 0) > 0 && <div className="mt-2"><p className="text-xs font-bold">Corrective actions</p><ul className="text-xs">{review.corrective_actions!.map((i, k) => <li key={k}>{i.text}</li>)}</ul></div>}
           {review.comments && <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">{review.comments}</p>}
-          {(() => { const g = aiGrade(drafts); const ag = agreement(g, review.checklist); return ag ? <p className="mt-2 text-[11px] text-violet-700 dark:text-violet-300">The AI’s grading matched the reviewer on {ag.same} of {ag.total} answers{g?.outcome && review.outcome ? (g.outcome === review.outcome ? "; the overall finding matched." : `; it suggested “${REVIEW_OUTCOME_LABEL[g.outcome] ?? g.outcome}” overall.`) : "."}</p> : null; })()}
+          {(() => { const g = aiGrade(drafts, (points ?? CHECKLIST).map((c) => c.key)); const ag = agreement(g, review.checklist); return ag ? <p className="mt-2 text-[11px] text-violet-700 dark:text-violet-300">The AI’s grading matched the reviewer on {ag.same} of {ag.total} answers{g?.outcome && review.outcome ? (g.outcome === review.outcome ? "; the overall finding matched." : `; it suggested “${REVIEW_OUTCOME_LABEL[g.outcome] ?? g.outcome}” overall.`) : "."}</p> : null; })()}
         </div>
       )}
       {["pending_approval", "escalated"].includes(s) && (

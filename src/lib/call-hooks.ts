@@ -164,6 +164,14 @@ export const searchCalls = (filters: SearchFilters, limit = 50, offset = 0) => r
 export const fetchAdviserQa = (days = 30, adviser?: string) => rpc<AdviserQa>("dv_compliance_adviser_qa", { p_days: days, p_adviser: adviser ?? null });
 export const assignReview = (callId: string, reviewer: string | null, priority: string, due: string | null) => rpc<string>("dv_compliance_assign", { p_call: callId, p_reviewer: reviewer, p_priority: priority, p_due: due });
 export const claimReview = (id: string) => rpc<void>("dv_compliance_claim", { p_review: id });
+export interface ScriptPoint { key: string; label: string; guidance?: string }
+export interface CallScript {
+  active: { id: string | null; version: number; name: string; is_default: boolean; points: ScriptPoint[] }; can_edit: boolean; labels: Record<string, string>;
+  versions: { version: number; name: string; points: number; is_active: boolean; created_at: string }[];
+}
+export const fetchScript = () => rpc<CallScript>("dv_call_script_get");
+export const saveScript = (name: string, points: ScriptPoint[]) => rpc<number>("dv_call_script_save", { p_name: name, p_points: points });
+export const fetchReviewScript = (reviewId: string) => rpc<ScriptPoint[]>("dv_call_script_review", { p_review: reviewId });
 export const startReview = (id: string) => rpc<void>("dv_compliance_start", { p_review: id });
 export const submitReview = (id: string, outcome: string, checklist: Record<string, string>, issues: { severity: string; text: string }[], actions: { text: string }[], comments: string) =>
   rpc<number>("dv_compliance_submit", { p_review: id, p_outcome: outcome, p_checklist: checklist, p_issues: issues, p_actions: actions, p_comments: comments || null });

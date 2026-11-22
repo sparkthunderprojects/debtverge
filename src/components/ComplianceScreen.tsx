@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BarChart3, ClipboardCheck, FileText, GraduationCap, History, Loader2, Search, Settings, ShieldAlert, Workflow, X } from "lucide-react";
 import { CallRecord } from "@/components/compliance/CallRecord";
-import { AuditSection, CoachingSection, DashboardSection, QaSection, ReportSection, RiskSection, SearchSection, SettingsSection, WorkflowSection } from "@/components/compliance/Sections";
+import { AuditSection, CoachingSection, DashboardSection, QaSection, ReportSection, RiskSection, ScriptEditor, SearchSection, SettingsSection, WorkflowSection } from "@/components/compliance/Sections";
 import { COACHING_TYPES, fetchMyCoaching, fmtDate, updateCoaching, type CoachingRow } from "@/lib/call-hooks";
 
 type Tab = "dashboard" | "search" | "qa" | "workflows" | "risks" | "coaching" | "audit" | "reports" | "settings";
@@ -37,7 +37,7 @@ export function ComplianceScreen({ initialCall }: { initialCall?: string | null 
         {tab === "coaching" && <CoachingSection preselect={coachFor} />}
         {tab === "audit" && <AuditSection open={setCall} />}
         {tab === "reports" && <ReportSection />}
-        {tab === "settings" && <SettingsSection />}
+        {tab === "settings" && <div className="space-y-4"><SettingsSection /><ScriptEditor /></div>}
       </div>
       {call && (
         <div className="fixed inset-0 z-[80] flex justify-end bg-slate-900/40" onClick={() => setCall(null)} role="presentation">

@@ -4,7 +4,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import {
   COACHING_TYPES, OUTCOME_LABEL, PRIORITY_LABEL, REVIEW_OUTCOME_LABEL, REVIEW_STATUS_LABEL, RISK_TYPES, assignReview, assignCoaching, cancelCoaching, csvOf, downloadText, fetchAdviserQa, fetchAudit,
   fetchCoachingList, fetchDashboard, fetchPeople, fetchQueue, fetchReport, fetchRisks, fetchTelephony, fetchUnreviewed, fmtDate, fmtDuration, fmtWhen, resolveRisk, reviewCoaching, saveTelephony, searchCalls,
-  CHECKLIST, type AdviserQa, type AuditRow, type CoachingRow, type Dashboard, type Person, type QueueRow, type Report, type RiskListRow, type SearchFilters, type SearchRow, type TelephonySettings, type UnreviewedRow,
+  CHECKLIST, fetchScript, saveScript, type CallScript, type ScriptPoint, type AdviserQa, type AuditRow, type CoachingRow, type Dashboard, type Person, type QueueRow, type Report, type RiskListRow, type SearchFilters, type SearchRow, type TelephonySettings, type UnreviewedRow,
 } from "@/lib/call-hooks";
 
 const Busy = () => <Loader2 className="h-5 w-5 animate-spin text-slate-400" />;
@@ -102,7 +102,8 @@ export function QaSection({ openCoach }: { openCoach: (adviserId: string) => voi
   const [days, setDays] = useState(30);
   const { data: d, err } = useLoad<AdviserQa>(() => fetchAdviserQa(days), [days]);
   if (err) return <Err m={err} />; if (!d) return <Busy />;
-  const label = (k: string) => CHECKLIST.find((c) => c.key === k)?.label ?? k.replace(/_/g, " ");
+  const sc = useLoad<CallScript>(fetchScript, []);
+  const label = (k: string) => sc.data?.labels[k] ?? CHECKLIST.find((c) => c.key === k)?.label ?? k.replace(/_/g, " ");
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2"><label className="label !mb-0">Period</label><select className="input !w-auto !py-1" value={days} onChange={(e) => setDays(Number(e.target.value))}>{[30, 90, 180, 365].map((n) => <option key={n} value={n}>Last {n} days</option>)}</select></div>
@@ -231,5 +232,41 @@ export function SettingsSection() {
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={dis} checked={s.require_second_approver} onChange={(e) => setS({ ...s, require_second_approver: e.target.checked })} /> A different person must approve each review</label>
       <div><p className="label">Your firm’s numbers</p>{s.numbers.length === 0 ? <p className="text-xs text-slate-500">No numbers are set up yet.</p> : <ul className="text-sm">{s.numbers.map((n) => <li key={n.e164}>{n.e164}{n.label ? ` · ${n.label}` : ""}</li>)}</ul>}</div>
       {msg && <p className="text-sm">{msg}</p>}{!dis && <button disabled={busy} className="btn btn-primary" onClick={save}>Save settings</button>}</div>
+  );
+}
+
+/** The firm's call script: the points an adviser must cover. The AI marks each one from the transcript as a draft and a reviewer confirms or changes it. */
+export function ScriptEditor() {
+  const { data, err, reload } = useLoad<CallScript>(fetchScript, []);
+  const [name, setName] = useState(""); const [pts, setPts] = useState<ScriptPoint[]>([]);
+  const [msg, setMsg] = useState<string | null>(null); const [busy, setBusy] = useState(false);
+  useEffect(() => { if (data) { setName(data.active.is_default ? "Our call script" : data.active.name); setPts(data.active.points.map((p) => ({ ...p }))); } }, [data]);
+  if (err) return <Err m={err} />; if (!data) return <Busy />;
+  const dis = !data.can_edit;
+  const set = (i: number, patch: Partial<ScriptPoint>) => setPts(pts.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const move = (i: number, d: number) => { const j = i + d; if (j < 0 || j >= pts.length) return; const n = [...pts]; [n[i], n[j]] = [n[j], n[i]]; setPts(n); };
+  const save = async () => { setBusy(true); setMsg(null); try { const v = await saveScript(name, pts.filter((p) => p.label.trim()).map((p) => ({ ...p, label: p.label.trim(), guidance: (p.guidance ?? "").trim() }))); setMsg(`Saved as version ${v}. Reviews already started keep the script they began with.`); reload(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } };
+  return (
+    <div className="panel max-w-2xl space-y-3 p-4">
+      <p className="text-sm font-bold">Call script</p>
+      <p className="text-xs text-slate-500">List what an adviser must cover on a call. When a call has a transcript the AI marks each point as covered or missed and shows its evidence. A reviewer listens and confirms or changes every answer. The score is the share of points the reviewer marks as covered. {data.active.is_default ? "You are using the standard nine-point checklist until you save your own script." : `Current: ${data.active.name}, version ${data.active.version}.`}</p>
+      {dis && <p className="text-xs text-slate-500">Only an administrator can change the script.</p>}
+      <div><label className="label">Script name</label><input className="input" disabled={dis} value={name} onChange={(e) => setName(e.target.value)} /></div>
+      <ol className="space-y-2">
+        {pts.map((p, i) => (
+          <li key={p.key + i} className="rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+            <div className="flex gap-2"><span className="pt-2 text-xs font-bold text-slate-400">{i + 1}</span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <input className="input" disabled={dis} placeholder="What the adviser must cover" maxLength={200} value={p.label} onChange={(e) => set(i, { label: e.target.value })} />
+                <input className="input text-xs" disabled={dis} placeholder="Optional note for the AI and reviewer, for example “must be said word for word”" maxLength={600} value={p.guidance ?? ""} onChange={(e) => set(i, { guidance: e.target.value })} /></div>
+              {!dis && <div className="flex flex-col text-xs"><button onClick={() => move(i, -1)} disabled={i === 0}>Up</button><button onClick={() => move(i, 1)} disabled={i === pts.length - 1}>Down</button><button className="text-rose-600" onClick={() => setPts(pts.filter((_, j) => j !== i))}>Remove</button></div>}
+            </div>
+          </li>))}
+      </ol>
+      {!dis && pts.length < 40 && <button className="text-xs text-brand-600 underline" onClick={() => setPts([...pts, { key: "", label: "", guidance: "" }])}>Add a point</button>}
+      {msg && <p className="text-sm">{msg}</p>}
+      {!dis && <button disabled={busy || pts.every((p) => !p.label.trim())} className="btn btn-primary" onClick={save}>Save as a new version</button>}
+      {data.versions.length > 0 && <p className="text-[11px] text-slate-500">Earlier versions are kept: {data.versions.map((v) => `v${v.version} (${v.points} points${v.is_active ? ", current" : ""})`).join(", ")}.</p>}
+    </div>
   );
 }
