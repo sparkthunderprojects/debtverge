@@ -8799,3 +8799,310 @@ I understand that {{firm_name}} will keep my information secure and only use it 
 Case reference: {{case_number}}
 Date: {{today}}'
 WHERE NOT EXISTS (SELECT 1 FROM document_templates WHERE organization_id IS NULL AND name = 'Letter of Authority');
+
+-- ===== 20261122110000_audit_trail_immutable =====
+-- Immutable, automatic audit trail. Every insert/update/delete on a case-linked table writes who, which firm,
+-- what changed (old and new values) and when, into debt_audit_log. The log cannot be edited or deleted by anyone.
+
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS organization_id uuid;
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS user_id uuid;
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS table_name text;
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS record_id uuid;
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS action text;
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS old_value jsonb;
+ALTER TABLE debt_audit_log ADD COLUMN IF NOT EXISTS new_value jsonb;
+ALTER TABLE debt_audit_log ALTER COLUMN case_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS debt_audit_log_org_idx ON debt_audit_log (organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS debt_audit_log_record_idx ON debt_audit_log (table_name, record_id);
+
+-- Backfill the firm on existing rows
+UPDATE debt_audit_log a SET organization_id = c.organization_id FROM debt_cases c WHERE c.id = a.case_id AND a.organization_id IS NULL;
+
+-- Stamp who/when on every insert so a client cannot forge the actor or back-date an entry
+CREATE OR REPLACE FUNCTION dv_audit_stamp() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  NEW.created_at := now();
+  IF auth.uid() IS NOT NULL THEN
+    NEW.user_id := auth.uid();
+    NEW.actor := COALESCE(auth.jwt() ->> 'email', auth.uid()::text);
+  ELSE
+    NEW.actor := COALESCE(NEW.actor, 'system');
+  END IF;
+  IF NEW.organization_id IS NULL AND NEW.case_id IS NOT NULL THEN
+    SELECT organization_id INTO NEW.organization_id FROM debt_cases WHERE id = NEW.case_id;
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_audit_stamp ON debt_audit_log;
+CREATE TRIGGER trg_audit_stamp BEFORE INSERT ON debt_audit_log FOR EACH ROW EXECUTE FUNCTION dv_audit_stamp();
+
+-- The log can never be changed or removed, by anyone (including service role and super admins)
+CREATE OR REPLACE FUNCTION dv_audit_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'the audit log is append-only' USING ERRCODE = '42501'; END $$;
+DROP TRIGGER IF EXISTS trg_audit_no_change ON debt_audit_log;
+CREATE TRIGGER trg_audit_no_change BEFORE UPDATE OR DELETE ON debt_audit_log FOR EACH ROW EXECUTE FUNCTION dv_audit_immutable();
+DROP TRIGGER IF EXISTS trg_audit_no_truncate ON debt_audit_log;
+CREATE TRIGGER trg_audit_no_truncate BEFORE TRUNCATE ON debt_audit_log FOR EACH STATEMENT EXECUTE FUNCTION dv_audit_immutable();
+REVOKE UPDATE, DELETE, TRUNCATE ON debt_audit_log FROM authenticated, anon, service_role;
+
+-- Replace the legacy and duplicate policies with one clear set
+DO $$ DECLARE p record; BEGIN
+  FOR p IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'debt_audit_log' LOOP
+    EXECUTE format('DROP POLICY %I ON debt_audit_log', p.policyname);
+  END LOOP;
+END $$;
+ALTER TABLE debt_audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY dv_audit_select ON debt_audit_log FOR SELECT TO authenticated
+  USING ((case_id IS NOT NULL AND dv_can_read_case(case_id)) OR (case_id IS NULL AND organization_id IS NOT NULL AND dv_is_manager(organization_id)));
+CREATE POLICY dv_audit_insert ON debt_audit_log FOR INSERT TO authenticated
+  WITH CHECK (case_id IS NOT NULL AND dv_can_edit_case(case_id));
+
+-- The automatic recorder
+CREATE OR REPLACE FUNCTION dv_audit_row() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE o jsonb; n jsonb; rec jsonb; cid uuid; org uuid; act text; chg jsonb := '{}'; oldv jsonb := '{}'; k text; keys text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN o := to_jsonb(OLD); rec := o;
+  ELSIF TG_OP = 'INSERT' THEN n := to_jsonb(NEW); rec := n;
+  ELSE o := to_jsonb(OLD); n := to_jsonb(NEW); rec := n; END IF;
+
+  IF TG_TABLE_NAME = 'debt_cases' THEN cid := (rec ->> 'id')::uuid;
+  ELSIF rec ? 'case_id' THEN cid := NULLIF(rec ->> 'case_id', '')::uuid;
+  ELSIF rec ? 'disbursement_run_id' THEN SELECT r.case_id INTO cid FROM disbursement_runs r WHERE r.id = (rec ->> 'disbursement_run_id')::uuid;
+  END IF;
+  org := NULLIF(rec ->> 'organization_id', '')::uuid;
+  IF org IS NULL AND cid IS NOT NULL THEN SELECT c.organization_id INTO org FROM debt_cases c WHERE c.id = cid; END IF;
+  IF cid IS NULL AND org IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    FOR k IN SELECT jsonb_object_keys(n) LOOP
+      CONTINUE WHEN k = 'updated_at';
+      IF o -> k IS DISTINCT FROM n -> k THEN chg := chg || jsonb_build_object(k, n -> k); oldv := oldv || jsonb_build_object(k, o -> k); END IF;
+    END LOOP;
+    IF chg = '{}'::jsonb THEN RETURN NEW; END IF;
+    act := CASE WHEN (n ->> 'deleted_at') IS NOT NULL AND (o ->> 'deleted_at') IS NULL THEN 'void' ELSE 'update' END;
+  ELSIF TG_OP = 'INSERT' THEN act := 'insert'; chg := n; oldv := NULL;
+  ELSE act := 'delete'; oldv := o; chg := NULL; END IF;
+
+  -- never copy link tokens into the log
+  IF chg IS NOT NULL THEN chg := chg - 'token'; END IF;
+  IF oldv IS NOT NULL THEN oldv := oldv - 'token'; END IF;
+  keys := (SELECT string_agg(x, ', ') FROM (SELECT jsonb_object_keys(COALESCE(CASE WHEN act IN ('update','void') THEN chg ELSE '{}'::jsonb END, '{}'::jsonb)) x LIMIT 6) s);
+
+  INSERT INTO debt_audit_log (case_id, organization_id, milestone, description, table_name, record_id, action, old_value, new_value)
+  VALUES (cid, org,
+          CASE act WHEN 'insert' THEN 'Record added' WHEN 'update' THEN 'Record changed' WHEN 'void' THEN 'Record voided' ELSE 'Record removed' END,
+          format('%s in %s%s', initcap(act), replace(replace(TG_TABLE_NAME, 'debt_', ''), '_', ' '), CASE WHEN keys IS NOT NULL THEN ' (' || keys || ')' ELSE '' END),
+          TG_TABLE_NAME, NULLIF(rec ->> 'id', '')::uuid, act, oldv, chg);
+  RETURN COALESCE(NEW, OLD);
+END $$;
+REVOKE EXECUTE ON FUNCTION dv_audit_row(), dv_audit_stamp(), dv_audit_immutable() FROM PUBLIC, anon, authenticated;
+
+-- Attach to every case-linked table
+DO $$ DECLARE t text; BEGIN
+  FOR t IN
+    SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname LIKE 'debt\_%' AND c.relname <> 'debt_audit_log'
+    UNION SELECT x FROM unnest(ARRAY['case_documents','case_tasks','cass_holds','cass_reconciliations','complaints','fee_charges','fee_rules','signing_requests','client_mandates','recurring_payment_schedules','payment_links','portal_change_requests','disbursement_runs','disbursement_run_items','debtverge_vulnerability_flags','debtverge_compliance_attestations','debtverge_communications']) x
+  LOOP
+    IF to_regclass('public.' || t) IS NOT NULL THEN
+      EXECUTE format('DROP TRIGGER IF EXISTS trg_audit_row ON %I', t);
+      EXECUTE format('CREATE TRIGGER trg_audit_row AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION dv_audit_row()', t);
+    END IF;
+  END LOOP;
+END $$;
+
+-- Nobody signed in via the API needs TRUNCATE, TRIGGER or REFERENCES on any table
+DO $$ DECLARE t record; BEGIN
+  FOR t IN SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','p') LOOP
+    EXECUTE format('REVOKE TRUNCATE, TRIGGER, REFERENCES ON %I FROM anon, authenticated', t.relname);
+  END LOOP;
+END $$;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE TRUNCATE, TRIGGER, REFERENCES ON TABLES FROM anon, authenticated;
+
+-- ===== 20261122120000_soft_delete_and_locking =====
+-- 1. Soft delete: a DELETE from the app marks the row voided instead of removing it. Voided rows are hidden by RLS and ignored by money functions.
+CREATE OR REPLACE FUNCTION dv_soft_delete() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  EXECUTE format('UPDATE %I.%I SET deleted_at = now(), deleted_by = %L WHERE id = %L AND deleted_at IS NULL', TG_TABLE_SCHEMA, TG_TABLE_NAME, auth.uid(), OLD.id);
+  RETURN NULL;
+END $$;
+REVOKE EXECUTE ON FUNCTION dv_soft_delete() FROM PUBLIC, anon, authenticated;
+
+DO $$ DECLARE t text; BEGIN
+  FOR t IN
+    SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r'
+      AND (c.relname = 'debt_cases' OR c.relname = 'disbursement_run_items' OR EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'case_id' AND NOT a.attisdropped))
+      AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'id' AND NOT a.attisdropped)
+      AND c.relname NOT IN ('debt_audit_log','case_access_log','cashier_audit_logs','payment_reconciliation_log','storm_call_callbacks','storm_call_sessions','storm_call_timeline_events')
+  LOOP
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_at timestamptz', t);
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_by uuid', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_soft_delete ON %I', t);
+    EXECUTE format('CREATE TRIGGER trg_soft_delete BEFORE DELETE ON %I FOR EACH ROW EXECUTE FUNCTION dv_soft_delete()', t);
+    EXECUTE format('DROP POLICY IF EXISTS dv_r_live_sel ON %I', t);
+    EXECUTE format('CREATE POLICY dv_r_live_sel ON %I AS RESTRICTIVE FOR SELECT USING (deleted_at IS NULL)', t);
+    EXECUTE format('DROP POLICY IF EXISTS dv_r_live_upd ON %I', t);
+    EXECUTE format('CREATE POLICY dv_r_live_upd ON %I AS RESTRICTIVE FOR UPDATE USING (deleted_at IS NULL) WITH CHECK (deleted_at IS NULL)', t);
+  END LOOP;
+END $$;
+
+REVOKE DELETE ON fee_rules, cass_reconciliations, complaint_events FROM authenticated, anon;
+
+-- 2. Functions ignore voided rows and lock the rows they change (one writer at a time per case / run / fee)
+DO $$ DECLARE f record; def text; BEGIN
+  FOR f IN SELECT p.oid, p.proname, p.provolatile FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname = 'public' AND p.proname IN ('dv_annual_statement','dv_approve_distribution_run','dv_cancel_distribution_run','dv_case_funds_held','dv_cass_position','dv_cass_release_hold','dv_cass_set_hold','dv_create_distribution_run','dv_decide_fee','dv_mark_distribution_paid','dv_post_fees','get_payment_link','dv_can_read_case','dv_can_edit_case','dv_create_signing_request','dv_ensure_case_tasks','dv_queue_message','dv_queue_annual_reviews','dv_queue_missed_payment_chasers')
+  LOOP
+    def := pg_get_functiondef(f.oid);
+    def := replace(def, 'FROM debt_payments WHERE ', 'FROM debt_payments WHERE deleted_at IS NULL AND ');
+    def := replace(def, 'FROM debt_payments p WHERE ', 'FROM debt_payments p WHERE p.deleted_at IS NULL AND ');
+    def := replace(def, 'JOIN debt_payments p ON p.case_id = h.id', 'JOIN debt_payments p ON p.case_id = h.id AND p.deleted_at IS NULL');
+    def := replace(def, 'FROM debt_creditors WHERE ', 'FROM debt_creditors WHERE deleted_at IS NULL AND ');
+    def := replace(def, 'JOIN debt_creditors d ON d.case_id = p_case AND d.creditor_name = i.payee_name', 'JOIN debt_creditors d ON d.case_id = p_case AND d.deleted_at IS NULL AND d.creditor_name = i.payee_name');
+    def := replace(def, 'FROM debt_cases c WHERE c.organization_id = org', 'FROM debt_cases c WHERE c.deleted_at IS NULL AND c.organization_id = org');
+    def := replace(def, 'WHERE c.id = cid AND', 'WHERE c.id = cid AND c.deleted_at IS NULL AND');
+    def := replace(def, 'FROM debt_cases WHERE status = ''payment_schedule_active''', 'FROM debt_cases WHERE deleted_at IS NULL AND status = ''payment_schedule_active''');
+    def := replace(def, 'WHERE c.status = ''payment_schedule_active'' AND c.next_due_date', 'WHERE c.deleted_at IS NULL AND c.status = ''payment_schedule_active'' AND c.next_due_date');
+    def := replace(def, 'LEFT JOIN debt_customer_profiles p ON p.case_id = c.id', 'LEFT JOIN debt_customer_profiles p ON p.case_id = c.id AND p.deleted_at IS NULL');
+    IF f.provolatile = 'v' AND f.proname IN ('dv_post_fees','dv_cass_set_hold','dv_cass_release_hold','dv_create_distribution_run') THEN
+      def := replace(def, 'SELECT * INTO c FROM debt_cases WHERE id = p_case;', 'SELECT * INTO c FROM debt_cases WHERE id = p_case AND deleted_at IS NULL FOR UPDATE;');
+    ELSE
+      def := replace(def, 'SELECT * INTO c FROM debt_cases WHERE id = p_case;', 'SELECT * INTO c FROM debt_cases WHERE id = p_case AND deleted_at IS NULL;');
+    END IF;
+    def := replace(def, 'SELECT * INTO r FROM disbursement_runs WHERE id = p_run;', 'SELECT * INTO r FROM disbursement_runs WHERE id = p_run FOR UPDATE;');
+    def := replace(def, 'SELECT * INTO f FROM fee_charges WHERE id = p_charge;', 'SELECT * INTO f FROM fee_charges WHERE id = p_charge FOR UPDATE;');
+    EXECUTE def;
+  END LOOP;
+END $$;
+
+-- 3. Hard guarantee: one open distribution run per case, even if two requests race
+CREATE UNIQUE INDEX IF NOT EXISTS disbursement_runs_one_open_per_case ON disbursement_runs (case_id) WHERE status IN ('draft','approved');
+
+-- ===== 20261122130000_ledger_tables_cannot_be_deleted =====
+-- Money ledgers and compliance records are never deleted or voided: they are corrected by an audited status change (cancel, waive, release).
+CREATE OR REPLACE FUNCTION dv_no_delete() RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $$
+BEGIN RAISE EXCEPTION 'this record cannot be deleted; cancel or reverse it instead' USING ERRCODE = '42501'; END $$;
+REVOKE EXECUTE ON FUNCTION dv_no_delete() FROM PUBLIC, anon, authenticated;
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['disbursement_runs','disbursement_run_items','fee_charges','cass_holds','signing_requests','complaints','fee_rules','cass_reconciliations','complaint_events'] LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_soft_delete ON %I', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_no_delete ON %I', t);
+    EXECUTE format('CREATE TRIGGER trg_no_delete BEFORE DELETE ON %I FOR EACH ROW EXECUTE FUNCTION dv_no_delete()', t);
+  END LOOP;
+END $$;
+
+-- ===== 20261122140000_harden_function_grants_3 =====
+REVOKE EXECUTE ON FUNCTION claim_next_background_job(text, text[]), update_job_progress(uuid, integer, integer, integer, integer, text, text), requeue_stale_jobs(integer),
+  seed_debtverge_roles(uuid), handle_new_user(), handle_new_user_profile(), dv_case_status_tasks(), dv_case_owner_tasks(), upsert_knowledge_gap(text, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION claim_next_background_job(text, text[]), update_job_progress(uuid, integer, integer, integer, integer, text, text), requeue_stale_jobs(integer),
+  seed_debtverge_roles(uuid), upsert_knowledge_gap(text, text) TO service_role;
+ALTER FUNCTION update_debt_cases_updated_at() SET search_path = public;
+ALTER FUNCTION update_updated_at_column() SET search_path = public;
+ALTER FUNCTION finance_knowledge_fts_update() SET search_path = public;
+ALTER FUNCTION claim_next_background_job(text, text[]) SET search_path = public;
+ALTER FUNCTION update_job_progress(uuid, integer, integer, integer, integer, text, text) SET search_path = public;
+ALTER FUNCTION requeue_stale_jobs(integer) SET search_path = public;
+ALTER FUNCTION dv_business_days(date, date) SET search_path = public;
+ALTER FUNCTION dv_audit_immutable() SET search_path = '';
+REVOKE EXECUTE ON FUNCTION finance_knowledge_fts_update(), update_debt_cases_updated_at(), update_updated_at_column() FROM PUBLIC, anon, authenticated;
+
+-- ===== 20261122150000_close_legacy_open_policies_2 =====
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['brands','contracts','finance_knowledge_categories','inventory_logs','job_postings','milestone_payments','orders','products','projects','tasks'] LOOP
+    IF to_regclass('public.'||t) IS NOT NULL THEN
+      EXECUTE format('DROP POLICY IF EXISTS dv_r_superadmin_only ON %I', t);
+      EXECUTE format('CREATE POLICY dv_r_superadmin_only ON %I AS RESTRICTIVE FOR ALL TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin())', t);
+    END IF;
+  END LOOP;
+END $$;
+DROP POLICY IF EXISTS dv_r_kb_ins ON finance_knowledge_articles;
+DROP POLICY IF EXISTS dv_r_kb_upd ON finance_knowledge_articles;
+DROP POLICY IF EXISTS dv_r_kb_del ON finance_knowledge_articles;
+CREATE POLICY dv_r_kb_ins ON finance_knowledge_articles AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (is_super_admin());
+CREATE POLICY dv_r_kb_upd ON finance_knowledge_articles AS RESTRICTIVE FOR UPDATE TO authenticated USING (is_super_admin()) WITH CHECK (is_super_admin());
+CREATE POLICY dv_r_kb_del ON finance_knowledge_articles AS RESTRICTIVE FOR DELETE TO authenticated USING (is_super_admin());
+DROP POLICY IF EXISTS dv_r_fp_sel ON freelancer_profiles;
+CREATE POLICY dv_r_fp_sel ON freelancer_profiles AS RESTRICTIVE FOR SELECT TO authenticated USING (is_super_admin() OR user_id = auth.uid());
+DROP POLICY IF EXISTS dv_r_roles_sel ON rbac_roles;
+CREATE POLICY dv_r_roles_sel ON rbac_roles AS RESTRICTIVE FOR SELECT TO authenticated USING (is_super_admin() OR organization_id IS NULL OR dv_is_org_member(organization_id));
+DROP POLICY IF EXISTS dv_r_roleperm_sel ON rbac_role_permissions;
+CREATE POLICY dv_r_roleperm_sel ON rbac_role_permissions AS RESTRICTIVE FOR SELECT TO authenticated
+  USING (is_super_admin() OR EXISTS (SELECT 1 FROM rbac_roles r WHERE r.id = role_id AND (r.organization_id IS NULL OR dv_is_org_member(r.organization_id))));
+DO $$ DECLARE t record; BEGIN
+  FOR t IN SELECT c.relname FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r','p','v','m') LOOP
+    EXECUTE format('REVOKE ALL ON %I FROM anon', t.relname);
+  END LOOP;
+END $$;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;
+
+-- ===== 20261122160000_audit_payment_tables_and_voided_case_guards =====
+-- Audit function: never copies bank/card details or tokens into the log; audits payment tables; voided cases are ignored by helpers;
+-- call-record tables get soft delete + audit.
+CREATE OR REPLACE FUNCTION dv_audit_row() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE o jsonb; n jsonb; rec jsonb; cid uuid; org uuid; act text; chg jsonb := '{}'; oldv jsonb := '{}'; k text; keys text;
+  secret_keys text[] := ARRAY['token','link_token','gateway_token','counterparty_account','cardholder_name','account_number','sort_code','iban'];
+BEGIN
+  IF TG_OP = 'DELETE' THEN o := to_jsonb(OLD); rec := o;
+  ELSIF TG_OP = 'INSERT' THEN n := to_jsonb(NEW); rec := n;
+  ELSE o := to_jsonb(OLD); n := to_jsonb(NEW); rec := n; END IF;
+  IF TG_TABLE_NAME = 'debt_cases' THEN cid := (rec ->> 'id')::uuid;
+  ELSIF rec ? 'case_id' THEN cid := NULLIF(rec ->> 'case_id', '')::uuid;
+  ELSIF rec ? 'disbursement_run_id' THEN SELECT r.case_id INTO cid FROM disbursement_runs r WHERE r.id = (rec ->> 'disbursement_run_id')::uuid;
+  END IF;
+  org := NULLIF(rec ->> 'organization_id', '')::uuid;
+  IF org IS NULL AND cid IS NOT NULL THEN SELECT c.organization_id INTO org FROM debt_cases c WHERE c.id = cid; END IF;
+  IF cid IS NULL AND org IS NULL THEN RETURN COALESCE(NEW, OLD); END IF;
+  IF TG_OP = 'UPDATE' THEN
+    FOR k IN SELECT jsonb_object_keys(n) LOOP
+      CONTINUE WHEN k = 'updated_at' OR k = ANY (secret_keys);
+      IF o -> k IS DISTINCT FROM n -> k THEN chg := chg || jsonb_build_object(k, n -> k); oldv := oldv || jsonb_build_object(k, o -> k); END IF;
+    END LOOP;
+    IF chg = '{}'::jsonb THEN RETURN NEW; END IF;
+    act := CASE WHEN (n ->> 'deleted_at') IS NOT NULL AND (o ->> 'deleted_at') IS NULL THEN 'void' ELSE 'update' END;
+  ELSIF TG_OP = 'INSERT' THEN act := 'insert'; chg := n - secret_keys; oldv := NULL;
+  ELSE act := 'delete'; oldv := o - secret_keys; chg := NULL; END IF;
+  keys := (SELECT string_agg(x, ', ') FROM (SELECT jsonb_object_keys(COALESCE(CASE WHEN act IN ('update','void') THEN chg ELSE '{}'::jsonb END, '{}'::jsonb)) x LIMIT 6) s);
+  INSERT INTO debt_audit_log (case_id, organization_id, milestone, description, table_name, record_id, action, old_value, new_value)
+  VALUES (cid, org,
+          CASE act WHEN 'insert' THEN 'Record added' WHEN 'update' THEN 'Record changed' WHEN 'void' THEN 'Record voided' ELSE 'Record removed' END,
+          format('%s in %s%s', initcap(act), replace(replace(TG_TABLE_NAME, 'debt_', ''), '_', ' '), CASE WHEN keys IS NOT NULL THEN ' (' || keys || ')' ELSE '' END),
+          TG_TABLE_NAME, NULLIF(rec ->> 'id', '')::uuid, act, oldv, chg);
+  RETURN COALESCE(NEW, OLD);
+END $$;
+REVOKE EXECUTE ON FUNCTION dv_audit_row() FROM PUBLIC, anon, authenticated;
+
+DO $$ DECLARE f record; def text; BEGIN
+  FOR f IN SELECT p.oid FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname IN ('assign_case','set_case_restricted','log_case_view','list_org_members') LOOP
+    def := pg_get_functiondef(f.oid);
+    def := replace(def, 'FROM debt_cases WHERE id = p_case;', 'FROM debt_cases WHERE id = p_case AND deleted_at IS NULL;');
+    def := replace(def, 'UPDATE debt_cases SET is_restricted = p_restricted, updated_at = now() WHERE id = p_case;', 'UPDATE debt_cases SET is_restricted = p_restricted, updated_at = now() WHERE id = p_case AND deleted_at IS NULL;');
+    def := replace(def, 'FROM debt_cases c WHERE c.organization_id = ou.organization_id', 'FROM debt_cases c WHERE c.deleted_at IS NULL AND c.organization_id = ou.organization_id');
+    EXECUTE def;
+  END LOOP;
+  FOR f IN SELECT c.relname FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('v','m') LOOP
+    EXECUTE format('REVOKE TRUNCATE, TRIGGER, REFERENCES ON %I FROM anon, authenticated', f.relname);
+  END LOOP;
+END $$;
+
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['bank_transactions','batch_payment_items','disbursement_waterfall_entries','gateway_payment_transactions','payment_attempts','payment_link_invitations','payment_methods'] LOOP
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_at timestamptz', t);
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_by uuid', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_audit_row ON %I', t);
+    EXECUTE format('CREATE TRIGGER trg_audit_row AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION dv_audit_row()', t);
+  END LOOP;
+  FOREACH t IN ARRAY ARRAY['storm_call_timeline_events','storm_call_callbacks','storm_call_sessions'] LOOP
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_at timestamptz', t);
+    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS deleted_by uuid', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_soft_delete ON %I', t);
+    EXECUTE format('CREATE TRIGGER trg_soft_delete BEFORE DELETE ON %I FOR EACH ROW EXECUTE FUNCTION dv_soft_delete()', t);
+    EXECUTE format('DROP POLICY IF EXISTS dv_r_live_sel ON %I', t);
+    EXECUTE format('CREATE POLICY dv_r_live_sel ON %I AS RESTRICTIVE FOR SELECT USING (deleted_at IS NULL)', t);
+    EXECUTE format('DROP POLICY IF EXISTS dv_r_live_upd ON %I', t);
+    EXECUTE format('CREATE POLICY dv_r_live_upd ON %I AS RESTRICTIVE FOR UPDATE USING (deleted_at IS NULL) WITH CHECK (deleted_at IS NULL)', t);
+    EXECUTE format('DROP TRIGGER IF EXISTS trg_audit_row ON %I', t);
+    EXECUTE format('CREATE TRIGGER trg_audit_row AFTER INSERT OR UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION dv_audit_row()', t);
+  END LOOP;
+END $$;

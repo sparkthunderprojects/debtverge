@@ -151,6 +151,10 @@ export interface DebtAuditEntry {
   description: string | null;
   actor: string | null;
   created_at: string;
+  action?: "insert" | "update" | "void" | "delete" | null;
+  table_name?: string | null;
+  old_value?: Record<string, unknown> | null;
+  new_value?: Record<string, unknown> | null;
 }
 
 export interface DebtCustomerProfile {

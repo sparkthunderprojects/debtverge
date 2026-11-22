@@ -10,3 +10,4 @@ DO $$ BEGIN
   RAISE NOTICE 'ESIGN TESTS PASSED';
 END $$;
 ROLLBACK;
+-- (also see audit_softdelete.sql and audit_checklist.sql)

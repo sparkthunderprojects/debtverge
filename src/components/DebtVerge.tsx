@@ -6151,6 +6151,13 @@ function ComplianceTab({ caseId, caseData }: { caseId: string | null; caseData: 
                       <span className="text-[10px] text-slate-400">{formatDateShort(entry.created_at)}</span>
                     </div>
                     {entry.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{entry.description}</p>}
+                    {entry.action === "update" && entry.new_value && (
+                      <ul className="mt-1.5 space-y-0.5 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-600 dark:bg-slate-900/40 dark:text-slate-300">
+                        {Object.keys(entry.new_value).slice(0, 6).map((k) => (
+                          <li key={k}><span className="font-semibold">{k.replace(/_/g, " ")}</span>: <span className="text-rose-600 line-through dark:text-rose-400">{String(entry.old_value?.[k] ?? "empty")}</span> → <span className="text-emerald-700 dark:text-emerald-400">{String(entry.new_value![k] ?? "empty")}</span></li>
+                        ))}
+                      </ul>
+                    )}
                     {entry.actor && <p className="mt-1 text-[10px] text-slate-400">by {entry.actor}</p>}
                   </div>
                 </div>
