@@ -83,3 +83,14 @@ export function printLetter(subject: string, body: string) {
   w.document.write(`<html><head><title>${esc(subject)}</title><style>body{font:14px/1.6 Arial,sans-serif;max-width:700px;margin:48px auto;white-space:pre-wrap}</style></head><body>${esc(body)}</body></html>`);
   w.document.close(); w.focus(); w.print();
 }
+
+/** The signed-in user's firm name (row security only lets them read their own firm). */
+export function useFirmName() {
+  const [name, setName] = useState("Your debt adviser");
+  useEffect(() => {
+    let alive = true;
+    supabase.from("organizations").select("name").limit(1).maybeSingle().then(({ data }) => { if (alive && data?.name) setName(data.name as string); });
+    return () => { alive = false; };
+  }, []);
+  return name;
+}

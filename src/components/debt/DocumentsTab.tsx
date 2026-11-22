@@ -2,9 +2,10 @@ import { useMemo, useRef, useState } from "react";
 import { FileText, Paperclip, Printer, Save, Trash2, Download, Copy, BookmarkPlus } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useDebtCreditors } from "../../lib/debt-hooks";
-import { MERGE_FIELDS, mergeValues, renderTemplate, useTemplates, useCaseDocuments, saveLetter, uploadCaseFile, openCaseFile, deleteCaseDocument, saveAsTemplate, printLetter } from "../../lib/document-hooks";
+import { MERGE_FIELDS, mergeValues, renderTemplate, useTemplates, useCaseDocuments, saveLetter, uploadCaseFile, openCaseFile, deleteCaseDocument, saveAsTemplate, printLetter, useFirmName } from "../../lib/document-hooks";
 import { supabase } from "../../lib/supabase";
 import type { DebtCase } from "../../lib/types";
+import { StatementPanel } from "./StatementPanel";
 
 export function DocumentsTab({ caseId, caseData }: { caseId: string | null; caseData: DebtCase | null }) {
   const { user, dvRole } = useAuth();
@@ -22,8 +23,8 @@ export function DocumentsTab({ caseId, caseData }: { caseId: string | null; case
   const tpl = templates.find((t) => t.id === tplId) ?? null;
   const creditor = creditors.find((c) => c.id === creditorId) ?? null;
   const adviser = (user?.user_metadata?.full_name as string) || user?.email || "Your adviser";
-  const firm = "DebtVerge";
-  const values = useMemo(() => (caseData ? mergeValues(caseData, creditor, { firm, adviser }) : {}), [caseData, creditor, adviser]);
+  const firm = useFirmName();
+  const values = useMemo(() => (caseData ? mergeValues(caseData, creditor, { firm, adviser }) : {}), [caseData, creditor, adviser, firm]);
 
   if (!caseId || !caseData) return <div className="flex h-full items-center justify-center text-sm text-slate-400">Select a case to see its documents</div>;
 
@@ -50,6 +51,7 @@ export function DocumentsTab({ caseId, caseData }: { caseId: string | null; case
       {err && <div className="rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">{err}</div>}
       {msg && <div className="rounded-xl bg-emerald-50 px-4 py-2 text-sm text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">{msg}</div>}
 
+      <StatementPanel caseId={caseId!} caseData={caseData!} />
       <div className="panel space-y-3 p-4">
         <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-slate-400" /><h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Write a letter</h3></div>
         <div className="grid gap-2 sm:grid-cols-2">
