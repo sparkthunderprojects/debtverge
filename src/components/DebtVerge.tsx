@@ -298,7 +298,13 @@ export function DebtVergeWorkspace({
 
   // Map context tabs to the local Tab type — context provides the filtered set
   const DRAFT_VISIBLE_TABS: Tab[] = ["dashboard", "profile", "intake", "ledger", "nominee_proposal", "creditor_voting", "document_checklist", "proof_of_debt", "proposal_generator", "pathfinder", "compliance", "communications"];
-  const tabsToShow: Tab[] = standaloneAppName === "DraftVerge" ? DRAFT_VISIBLE_TABS : visibleTabs;
+  const baseTabs: Tab[] = standaloneAppName === "DraftVerge" ? DRAFT_VISIBLE_TABS : visibleTabs;
+  // Email & SMS lives inside the Communications tab, so it no longer gets a tab of its own.
+  const tabsToShow: Tab[] = baseTabs.includes("messages")
+    ? Array.from(new Set(baseTabs.map((t) => (t === "messages" ? ("communications" as Tab) : t))))
+    : baseTabs;
+  const [commsView, setCommsView] = useState<"conversations" | "send">("conversations");
+  useEffect(() => { if (activeTab === "messages") { setCommsView("send"); setActiveTab("communications" as Tab); } }, [activeTab, setActiveTab]);
 
   useEffect(() => {
     if (standaloneAppName === "DraftVerge" && !DRAFT_VISIBLE_TABS.includes(activeTab)) {
@@ -729,8 +735,6 @@ export function DebtVergeWorkspace({
             <DiaryTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "documents" ? (
             <DocumentsTab caseId={activeCaseId} caseData={selectedCase} />
-          ) : activeTab === "messages" ? (
-            <MessagesTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "ledger" ? (
             <CreditorLedgerTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "forecast" ? (
@@ -831,12 +835,25 @@ export function DebtVergeWorkspace({
           ) : activeTab === "breathing_space" ? (
             <BreathingSpaceTab caseId={activeCaseId} caseData={selectedCase} />
           ) : activeTab === "communications" ? (
-            <TeamCommsWorkspace
-              agentId="advisor"
-              agentName="Sarah Jenkins"
-              selectedCaseId={activeCaseId ?? null}
-              onViewCaseRecord={() => setActiveTab("dashboard")}
-            />
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="mb-3 inline-flex w-fit rounded-lg border border-slate-200 bg-white p-0.5 text-sm dark:border-slate-700 dark:bg-slate-800">
+                {([["conversations", "Conversations"], ["send", "Send email / SMS"]] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setCommsView(v)} className={`rounded-md px-3 py-1.5 font-semibold ${commsView === v ? "bg-emerald-600 text-white" : "text-slate-600 dark:text-slate-300"}`}>{label}</button>
+                ))}
+              </div>
+              <div className="min-h-0 flex-1">
+                {commsView === "send" ? (
+                  <MessagesTab caseId={activeCaseId} caseData={selectedCase} />
+                ) : (
+                  <TeamCommsWorkspace
+                    agentId="advisor"
+                    agentName="Sarah Jenkins"
+                    selectedCaseId={activeCaseId ?? null}
+                    onViewCaseRecord={() => setActiveTab("dashboard")}
+                  />
+                )}
+              </div>
+            </div>
           ) : (
             <UnhandledTabState tabId={activeTab} onReset={() => setActiveTab("dashboard")} />
           )}
