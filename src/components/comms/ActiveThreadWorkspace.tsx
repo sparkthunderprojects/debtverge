@@ -9,6 +9,7 @@ import { CHANNEL_META, FCA_TEMPLATES, type FcaTemplate } from "@/components/comm
 import { formatDateTime, formatDuration } from "@/lib/format";
 import { assignThreadToAgent, sendMessage } from "@/lib/comms-hooks";
 import { queueMessage } from "@/lib/outbox-hooks";
+import { ComplaintFlagBanner } from "@/components/debt/ComplaintFlagBanner";
 import type { DebtVergeCommunication, CommsChannel, SendMessagePayload } from "@/lib/types";
 import type { QueueItem } from "@/components/comms/comms-shared";
 import {
@@ -168,6 +169,8 @@ export function ActiveThreadWorkspace({
           <span className="text-[10px] text-slate-400">Case Ref: {item.caseNumber}</span>
         </div>
       </div>
+
+      <ComplaintFlagBanner caseId={item.caseId} clientName={item.debtorName} />
 
       {/* ---- Conversation Timeline ---- */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
